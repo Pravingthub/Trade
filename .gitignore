@@ -1,0 +1,16 @@
+# secrets - never commit
+.env
+.env.*
+.kite_token
+.telegram_sent
+# your market data and results stay on your computer
+data/
+results/
+reports/
+dashboard.html
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/
