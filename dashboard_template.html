@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PRAVIN AI · CPR & Pivots (demo)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EDF0F3; --surface:#FFFFFF; --ink:#17212B; --muted:#5A6875; --line:#D3DAE1;
+  --cpr:#2C5C8F; --cpr-tint:rgba(44,92,143,.16); --res:#A8432C; --sup:#2D7656;
+  --demo-bg:#FBEFC9; --demo-ink:#6E4700; --focus:#2C5C8F;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#10161C; --surface:#18212A; --ink:#E6ECF1; --muted:#95A3B0; --line:#2A3540;
+    --cpr:#6FA3DA; --cpr-tint:rgba(111,163,218,.18); --res:#E07D63; --sup:#5DBB8D;
+    --demo-bg:#3A2E0E; --demo-ink:#F2C55C; --focus:#6FA3DA; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#10161C; --surface:#18212A; --ink:#E6ECF1; --muted:#95A3B0; --line:#2A3540;
+  --cpr:#6FA3DA; --cpr-tint:rgba(111,163,218,.18); --res:#E07D63; --sup:#5DBB8D;
+  --demo-bg:#3A2E0E; --demo-ink:#F2C55C; --focus:#6FA3DA; color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font:15px/1.5 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+.demo{background:var(--demo-bg);color:var(--demo-ink);padding:10px 20px;font-weight:500;font-size:14px}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 20px 48px}
+header{display:flex;flex-wrap:wrap;gap:16px 32px;align-items:flex-end;justify-content:space-between;margin-bottom:20px}
+.brand{font-size:13px;color:var(--muted);font-weight:500;margin:0 0 4px}
+h1{font-size:28px;line-height:1.15;font-weight:600;margin:0;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:6px 0 0;font-size:14px}
+.controls{display:flex;flex-direction:column;gap:10px;align-items:flex-end}
+.seg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:3px;flex-wrap:wrap}
+.seg button{font:inherit;font-size:14px;border:0;background:none;color:var(--muted);padding:6px 12px;border-radius:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface);font-weight:500}
+button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:20px}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}.controls{align-items:flex-start}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+.panel h2{font-size:15px;font-weight:600;margin:0 0 12px}
+.ladder svg{display:block;width:100%;height:auto}
+.trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:14px}
+.trio div{border-left:3px solid var(--cpr);padding:2px 0 2px 8px;min-width:0}
+.trio .k{font-size:13px;color:var(--muted)} .trio .v{font-size:clamp(14px,3.7vw,19px);font-weight:600}
+.meter{position:relative;height:8px;border-radius:4px;background:linear-gradient(90deg,var(--cpr-tint) 0 20%,var(--line) 20% 80%,var(--cpr-tint) 80%);margin:8px 0 4px}
+.meter i{position:absolute;top:-4px;width:3px;height:16px;background:var(--ink);border-radius:2px;transform:translateX(-1px)}
+.meterlab{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+p.fact{margin:10px 0 0;font-size:14px}
+.tag{display:inline-block;font-size:13px;font-weight:600;padding:1px 8px;border-radius:5px;background:var(--cpr-tint);color:var(--cpr)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-weight:500;color:var(--muted);font-size:13px;padding:6px 8px 6px 0;border-bottom:1px solid var(--line)}
+td{padding:6px 8px 6px 0;border-bottom:1px solid var(--line)}
+td.num,th.num{text-align:right}
+tr:last-child td{border-bottom:0}
+.r{color:var(--res)} .s{color:var(--sup)} .c{color:var(--cpr)}
+.stack{display:flex;flex-direction:column;gap:20px}
+.full{grid-column:1/-1}
+.scroll{overflow-x:auto}
+.chart svg{display:block;width:100%;height:auto;touch-action:pan-y}
+.readout{font-size:14px;color:var(--muted);min-height:22px;margin-top:8px}
+.readout b{color:var(--ink);font-weight:600}
+.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px 18px}
+.kv .k{font-size:13px;color:var(--muted)} .kv .v{font-weight:600}
+.note{font-size:13px;color:var(--muted);margin:12px 0 0}
+footer{margin-top:20px;font-size:13px;color:var(--muted)}
+footer ul{margin:6px 0 0;padding-left:18px}
+</style>
+</head>
+<body>
+<div class="demo" role="note">Demo data. These prices are simulated, not NSE quotes. Use this page to check the calculations, not to trade.</div>
+<div class="wrap">
+  <header>
+    <div>
+      <p class="brand">PRAVIN AI · CPR & Pivots</p>
+      <h1 id="title">Levels</h1>
+      <p class="sub" id="subtitle"></p>
+    </div>
+    <div class="controls">
+      <div class="seg" id="inst" role="group" aria-label="Instrument"></div>
+      <div class="seg" id="period" role="group" aria-label="Period">
+        <button data-p="day" aria-pressed="true">Daily</button>
+        <button data-p="week" aria-pressed="false">Weekly</button>
+        <button data-p="month" aria-pressed="false">Monthly</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="panel ladder" aria-labelledby="lh"><h2 id="lh">Level ladder</h2><div id="ladder"></div></section>
+    <div class="stack">
+      <section class="panel" aria-labelledby="ch"><h2 id="ch">Central pivot range</h2><div id="cprbox"></div></section>
+      <section class="panel" aria-labelledby="ph"><h2 id="ph">Pivot levels</h2><div class="scroll" id="pivots"></div></section>
+    </div>
+    <section class="panel chart full" aria-labelledby="hh">
+      <h2 id="hh">Daily CPR, last 40 sessions</h2>
+      <div id="chart"></div>
+      <div class="readout" id="readout">Hover or tap a session to see its CPR.</div>
+    </section>
+    <section class="panel" aria-labelledby="ih"><h2 id="ih">Indicators on the daily chart</h2><div id="ind"></div></section>
+    <section class="panel" aria-labelledby="mh"><h2 id="mh">Timeframes</h2><div class="scroll" id="mtf"></div></section>
+  </div>
+  <footer id="foot"></footer>
+</div>
+
+<script>
+const DATA = __DATA__;
+const state = { i: 0, p: "day" };
+const $ = id => document.getElementById(id);
+const fmt = (v, d = 2) => v == null || Number.isNaN(v) ? "—" :
+  Number(v).toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d });
+const dt = (s, o = { weekday: "short", day: "numeric", month: "short" }) =>
+  new Date(s.slice(0, 10) + "T00:00:00").toLocaleDateString("en-GB", o);
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs = {}, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (text != null) e.textContent = text;
+  return e;
+}
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+const RELATION = {
+  higher_value: "Entirely above the previous CPR (higher value)",
+  lower_value: "Entirely below the previous CPR (lower value)",
+  overlapping_higher: "Overlaps the previous CPR, shifted up",
+  overlapping_lower: "Overlaps the previous CPR, shifted down",
+  inside: "Inside the previous CPR",
+  outside: "Engulfs the previous CPR",
+  unchanged: "Same as the previous CPR",
+};
+const PERIOD_WORD = { day: "session", week: "week", month: "month" };
+
+function inst() { return DATA.instruments[state.i]; }
+
+function header() {
+  const d = DATA.status;
+  $("title").textContent = `Levels for ${dt(d.next_session, { weekday: "long", day: "numeric", month: "long" })}`;
+  const m = inst().meta;
+  $("subtitle").textContent = `${m.name} · built from completed sessions up to ${dt(d.last_session)}`;
+  const box = $("inst");
+  if (!box.children.length) {
+    DATA.instruments.forEach((x, k) => {
+      const b = document.createElement("button");
+      b.textContent = x.meta.symbol; b.dataset.k = k;
+      b.onclick = () => { state.i = k; render(); };
+      box.appendChild(b);
+    });
+  }
+  [...box.children].forEach((b, k) => b.setAttribute("aria-pressed", String(k === state.i)));
+  [...$("period").children].forEach(b => b.setAttribute("aria-pressed", String(b.dataset.p === state.p)));
+}
+
+function spread(items, minGap, lo, hi) {
+  items.sort((a, b) => a.y - b.y);
+  for (let k = 1; k < items.length; k++)
+    if (items[k].ly - items[k - 1].ly < minGap) items[k].ly = items[k - 1].ly + minGap;
+  const over = items.length ? items[items.length - 1].ly - hi : 0;
+  if (over > 0) for (let k = items.length - 1; k >= 0; k--) {
+    items[k].ly -= over;
+    if (k > 0 && items[k].ly - items[k - 1].ly < minGap) items[k - 1].ly = items[k].ly - minGap; else break;
+  }
+  return items;
+}
+
+function ladder() {
+  const c = inst().cpr[state.p], pv = inst().pivots[state.p];
+  const L = c.levels, F = pv.floor, C = pv.camarilla, close = c.reference_price.value;
+  const W = Math.max(330, Math.min(640, $("ladder").clientWidth || 640)), H = W < 500 ? 520 : 600, top = 40, bot = H - 16;
+  const compact = W < 500;
+  const vals = [F.r3, F.s3, C.r4, C.s4, L.top, L.bottom, close];
+  let hi = Math.max(...vals), lo = Math.min(...vals); const pad = (hi - lo) * 0.04; hi += pad; lo -= pad;
+  const y = v => top + (hi - v) / (hi - lo) * (bot - top);
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img",
+    "aria-label": `Level ladder for ${inst().meta.symbol}, ${state.p}` });
+  const labels = el("g");
+  const col = { fl: [0, W * .36], cpr: [W * .375, W * .625], cam: [W * .64, W] };
+  [["Floor pivots", 0, "start"], ["CPR", W / 2, "middle"], ["Camarilla", W, "end"]].forEach(([t, x, a]) =>
+    svg.appendChild(el("text", { x, y: 18, "text-anchor": a, fill: css("--muted"), "font-size": 13 }, t)));
+  // CPR band
+  svg.appendChild(el("rect", { x: col.cpr[0], y: y(L.top), width: col.cpr[1] - col.cpr[0],
+    height: Math.max(2, y(L.bottom) - y(L.top)), fill: css("--cpr-tint"), stroke: css("--cpr"), "stroke-width": 1.5 }));
+  svg.appendChild(el("line", { x1: col.cpr[0], x2: col.cpr[1], y1: y(L.pivot), y2: y(L.pivot),
+    stroke: css("--cpr"), "stroke-dasharray": "4 3", "stroke-width": 1.5 }));
+  // Centre column: CPR labels and the last-close label share one collision pass.
+  const mid = (col.cpr[0] + col.cpr[1]) / 2, yc = y(close);
+  const narrowBand = y(L.bottom) - y(L.top) < 36;   // too thin to label inside
+  const centre = spread([
+    { t: `${L.tc >= L.bc ? "TC" : "BC"} ${fmt(L.top)}`, y: y(L.top) - 0.01, ly: y(L.top) - (narrowBand ? 21 : 6), c: css("--cpr"), w: 600 },
+    { t: `P ${fmt(L.pivot)}`, y: y(L.pivot), ly: narrowBand ? y(L.top) - 6 : y(L.pivot) + 4, c: css("--cpr"), w: 400 },
+    { t: `${L.tc >= L.bc ? "BC" : "TC"} ${fmt(L.bottom)}`, y: y(L.bottom) + 0.01, ly: y(L.bottom) + 16, c: css("--cpr"), w: 600 },
+    { t: `${compact ? "Close" : "Last close"} ${fmt(close)}`, y: yc + (close >= L.pivot ? -0.02 : 0.02), ly: yc + (close >= L.top ? -6 : 16), c: css("--ink"), w: 600 },
+  ].map(o => ({ ...o, ly: o.ly })), 15, top, bot);
+  centre.sort((a, b) => a.ly - b.ly);
+  for (let k = 1; k < centre.length; k++) if (centre[k].ly - centre[k - 1].ly < 15) centre[k].ly = centre[k - 1].ly + 15;
+  centre.forEach(o => labels.appendChild(el("text", { x: mid, y: o.ly, "text-anchor": "middle", "font-size": 12.5, fill: o.c, "font-weight": o.w }, o.t)));
+
+  function side(levels, x0, x1, anchor) {
+    const items = levels.map(([n, v]) => ({ n, v, y: y(v), ly: y(v),
+      color: n.startsWith("R") ? css("--res") : n.startsWith("S") ? css("--sup") : css("--cpr") }));
+    spread(items, 16, top, bot);
+    items.forEach(it => {
+      svg.appendChild(el("line", { x1: x0, x2: x1, y1: it.y, y2: it.y, stroke: it.color, "stroke-width": 1.25 }));
+      const lx = anchor === "start" ? x0 : x1;
+      labels.appendChild(el("text", { x: lx, y: it.ly - 4, "text-anchor": anchor, "font-size": 12.5, fill: it.color },
+        `${it.n} ${fmt(it.v)}`));
+    });
+  }
+  side([["R3", F.r3], ["R2", F.r2], ["R1", F.r1], ["S1", F.s1], ["S2", F.s2], ["S3", F.s3]], col.fl[0], col.fl[1], "start");
+  side([["R4", C.r4], ["R3", C.r3], ["R2", C.r2], ["R1", C.r1], ["S1", C.s1], ["S2", C.s2], ["S3", C.s3], ["S4", C.s4]], col.cam[0], col.cam[1], "end");
+  // last close marker
+  svg.appendChild(el("line", { x1: 0, x2: W, y1: yc, y2: yc, stroke: css("--ink"), "stroke-width": 1, "stroke-dasharray": "1 3" }));
+  svg.appendChild(el("path", { d: `M${col.cpr[1] + 2},${yc} l8,-5 v10 z`, fill: css("--ink") }));
+  svg.appendChild(labels);
+  $("ladder").replaceChildren(svg);
+  // Opaque plate behind each label so level lines never run through text.
+  [...labels.querySelectorAll("text")].forEach(tx => {
+    const bb = tx.getBBox();
+    labels.insertBefore(el("rect", { x: bb.x - 3, y: bb.y, width: bb.width + 6, height: bb.height,
+      fill: css("--surface") }), tx);
+  });
+}
+
+function cprBox() {
+  const c = inst().cpr[state.p], L = c.levels, w = c.width_classification, s = c.source_ohlc;
+  const pct = w.percentile;
+  const label = { narrow: "Narrow", wide: "Wide", normal: "Normal", insufficient_history: "Not enough history" }[w.label];
+  const span = s.start === s.end ? dt(s.start) : `${dt(s.start)} to ${dt(s.end)}`;
+  $("cprbox").innerHTML = `
+    <div class="trio">
+      <div><div class="k">Top</div><div class="v">${fmt(L.top)}</div></div>
+      <div><div class="k">Pivot</div><div class="v">${fmt(L.pivot)}</div></div>
+      <div><div class="k">Bottom</div><div class="v">${fmt(L.bottom)}</div></div>
+    </div>
+    <div><span class="tag">${label}</span> width ${fmt(L.width)} points, ${fmt(L.width_pct, 3)}% of pivot</div>
+    ${pct == null ? `<p class="note">Needs ${w.samples} of the required periods of history to rank the width.</p>` : `
+    <div class="meter" aria-hidden="true"><i style="left:${pct}%"></i></div>
+    <div class="meterlab"><span>Narrower</span><span>${fmt(pct, 0)}th percentile of last ${w.samples} ${PERIOD_WORD[state.p]}s</span><span>Wider</span></div>`}
+    <p class="fact">${RELATION[c.relation_to_previous]}.</p>
+    <p class="fact">Last close is <b>${c.reference_price.position}</b> the CPR.</p>
+    <p class="note">Built from the ${PERIOD_WORD[state.p]} ${span}${s.sessions > 1 ? ` (${s.sessions} sessions)` : ""}:
+      open ${fmt(s.open)}, high ${fmt(s.high)}, low ${fmt(s.low)}, close ${fmt(s.close)}.
+      Raw TC ${fmt(L.tc)}, raw BC ${fmt(L.bc)}.</p>`;
+}
+
+function pivots() {
+  const pv = inst().pivots[state.p], F = pv.floor, C = pv.camarilla;
+  const rows = [["R4", null, C.r4], ["R3", F.r3, C.r3], ["R2", F.r2, C.r2], ["R1", F.r1, C.r1],
+    ["P", F.pivot, null], ["S1", F.s1, C.s1], ["S2", F.s2, C.s2], ["S3", F.s3, C.s3], ["S4", null, C.s4]];
+  const cls = n => n.startsWith("R") ? "r" : n.startsWith("S") ? "s" : "c";
+  $("pivots").innerHTML = `<table><thead><tr><th>Level</th><th class="num">Floor</th><th class="num">Camarilla ×${C.multiplier}</th></tr></thead>
+    <tbody>${rows.map(([n, a, b]) => `<tr><td class="${cls(n)}">${n}</td><td class="num">${fmt(a)}</td><td class="num">${fmt(b)}</td></tr>`).join("")}</tbody></table>`;
+}
+
+function chart() {
+  const rows = inst().history.sessions;
+  const W = Math.max(330, $("chart").clientWidth || 1100), H = W < 600 ? 260 : 340, l = 4, r = 62, t = 12, b = 26;
+  const every = W < 600 ? 10 : 5;
+  const hi = Math.max(...rows.map(x => Math.max(x.high, x.cpr_top))), lo = Math.min(...rows.map(x => Math.min(x.low, x.cpr_bottom)));
+  const y = v => t + (hi - v) / (hi - lo) * (H - t - b);
+  const step = (W - l - r) / rows.length, cw = Math.max(3, step * 0.42);
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Daily candles with each session's CPR band" });
+  for (let g = 0; g <= 4; g++) {
+    const v = lo + (hi - lo) * g / 4;
+    svg.appendChild(el("line", { x1: l, x2: W - r, y1: y(v), y2: y(v), stroke: css("--line") }));
+    svg.appendChild(el("text", { x: W - r + 6, y: y(v) + 4, "font-size": 12, fill: css("--muted") }, fmt(v, 0)));
+  }
+  const hl = el("rect", { y: t, height: H - t - b, width: step, fill: css("--cpr-tint"), opacity: 0 });
+  svg.appendChild(hl);
+  rows.forEach((x, k) => {
+    const cx = l + step * k + step / 2;
+    svg.appendChild(el("rect", { x: l + step * k + 1, width: step - 2, y: y(x.cpr_top), height: Math.max(1.5, y(x.cpr_bottom) - y(x.cpr_top)),
+      fill: x.virgin ? "none" : css("--cpr-tint"), stroke: css("--cpr"), "stroke-width": 1, "stroke-dasharray": x.virgin ? "3 2" : "0" }));
+    const up = x.close >= x.open, col = up ? css("--sup") : css("--res");
+    svg.appendChild(el("line", { x1: cx, x2: cx, y1: y(x.high), y2: y(x.low), stroke: col, "stroke-width": 1.2 }));
+    svg.appendChild(el("rect", { x: cx - cw / 2, width: cw, y: y(Math.max(x.open, x.close)),
+      height: Math.max(1, Math.abs(y(x.open) - y(x.close))), fill: up ? css("--surface") : col, stroke: col, "stroke-width": 1.2 }));
+    if (k % every === 0) svg.appendChild(el("text", { x: k === 0 ? l : cx, y: H - 8, "text-anchor": k === 0 ? "start" : "middle", "font-size": 12, fill: css("--muted") }, dt(x.session, { day: "numeric", month: "short" })));
+  });
+  const show = k => {
+    const x = rows[k]; hl.setAttribute("x", l + step * k); hl.setAttribute("opacity", 1);
+    $("readout").innerHTML = `<b>${dt(x.session)}</b>: opened ${x.open_vs_cpr} the CPR (${fmt(x.cpr_bottom)} to ${fmt(x.cpr_top)}, width ${fmt(x.width_pct, 3)}%)`
+      + `. High ${fmt(x.high)}, low ${fmt(x.low)}, close ${fmt(x.close)}.${x.virgin ? " The CPR was never touched (virgin)." : ""}`;
+  };
+  const pick = e => {
+    const p = svg.getBoundingClientRect(), sx = (e.clientX - p.left) / p.width * W;
+    const k = Math.floor((sx - l) / step); if (k >= 0 && k < rows.length) show(k);
+  };
+  svg.addEventListener("pointermove", pick); svg.addEventListener("pointerdown", pick);
+  $("chart").replaceChildren(svg);
+  const v = inst().history.virgin_share;
+  $("hh").textContent = `Daily CPR, last ${rows.length} sessions`;
+  $("readout").innerHTML = `Shaded bands are each session's CPR; dashed bands were never touched that day (${fmt(v * 100, 0)}% of these sessions). Hover or tap a session for details.`;
+}
+
+function indicators() {
+  const d = inst().indicators, I = d.indicators, rg = d.regime, s = inst().session;
+  const RG = { trending_bullish: "Trending up", trending_bearish: "Trending down", range_bound: "Range-bound",
+    high_volatility: "High volatility", compressed: "Compressed", transition: "In transition", uncertain: "Uncertain" };
+  const kv = (k, v) => `<div><div class="k">${k}</div><div class="v">${v}</div></div>`;
+  const vol = I.volume.status === "unavailable" ? kv("Volume", "Not traded on an index") :
+    kv("Relative volume", fmt(I.volume.relative_volume20)) + kv("MFI 14", fmt(I.volume.mfi14, 1));
+  const vw = s.vwap.value == null ? "Unavailable" : fmt(s.vwap.value);
+  const vwLab = s.vwap.source_instrument && s.vwap.source_instrument !== inst().meta.id ? `VWAP (from ${s.vwap.source_instrument})` : "VWAP";
+  const or = s.opening_range_15m;
+  $("ind").innerHTML = `
+    <p style="margin:0 0 12px"><span class="tag">${RG[rg.label]}</span> <span class="note">rule set ${rg.version}, ADX ${fmt(rg.evidence.adx, 1)}, ATR at ${fmt(rg.evidence.atr_percentile, 0)}th percentile</span></p>
+    <div class="kv">
+      ${kv("EMA 20", fmt(I.trend.ema20))}${kv("EMA 50", fmt(I.trend.ema50))}${kv("EMA 200", fmt(I.trend.ema200))}
+      ${kv("RSI 14", fmt(I.momentum.rsi14, 1))}${kv("ADX 14", fmt(I.trend.adx14, 1))}${kv("+DI / −DI", `${fmt(I.trend.plus_di14, 1)} / ${fmt(I.trend.minus_di14, 1)}`)}
+      ${kv("MACD histogram", fmt(I.momentum.macd_histogram))}${kv("ATR 14", `${fmt(I.volatility.atr14)} (${fmt(I.volatility.atr14_pct)}%)`)}
+      ${kv("Bollinger width", fmt(I.volatility.bb_bandwidth_pct) + "%")}${vol}
+    </div>
+    <h2 style="margin:18px 0 10px">Previous session, ${dt(s.session)}</h2>
+    <div class="kv">${kv("High / low", `${fmt(s.high)} / ${fmt(s.low)}`)}${kv("Opening range, 15 min", or ? `${fmt(or.high)} / ${fmt(or.low)}` : "Incomplete")}${kv(vwLab, vw)}</div>
+    <p class="note">EMA, RSI, ATR, ADX/DMI, MACD, Bollinger, OBV and MFI match TA-Lib to floating-point precision in the test suite.</p>`;
+}
+
+function mtf() {
+  const m = inst().mtf;
+  const AL = { aligned_up: "All timeframes up", aligned_down: "All timeframes down", mostly_up: "Mostly up", mostly_down: "Mostly down", conflicted: "Timeframes disagree" };
+  const TR = { up: "Up", down: "Down", mixed: "Mixed", unknown: "—" };
+  $("mtf").innerHTML = `<p style="margin:0 0 10px"><span class="tag">${AL[m.alignment]}</span></p>
+    <table><thead><tr><th>Timeframe</th><th>Trend</th><th class="num">RSI 14</th><th class="num">ADX 14</th><th>Last completed bar</th></tr></thead><tbody>
+    ${m.timeframes.map(f => f.status === "ok" ? `<tr><td>${f.timeframe}</td><td>${TR[f.trend]}</td><td class="num">${fmt(f.rsi14, 1)}</td><td class="num">${fmt(f.adx14, 1)}</td><td>${f.last_bar.length > 10 ? f.last_bar.slice(0, 16).replace("T", " ") : dt(f.last_bar)}</td></tr>`
+      : `<tr><td>${f.timeframe}</td><td colspan="4" class="note" style="margin:0">Only ${f.bars} completed bars; needs 30</td></tr>`).join("")}
+    </tbody></table><p class="note">${m.note}</p>`;
+}
+
+function foot() {
+  const h = DATA.health, row = h.instruments.find(x => x.instrument === inst().meta.id);
+  const issues = row.issues.length ? row.issues.map(i => i.detail).join("; ") : "no candle errors";
+  $("foot").innerHTML = `<b>Data health for ${inst().meta.symbol}:</b> ${issues}, ${row.missing_sessions.length} missing sessions.
+    Live recommendations are blocked: ${row.why_blocked}.
+    <ul><li>Source: ${DATA.status.provider} (${DATA.status.data_mode}).</li><li>Calendar: ${DATA.status.calendar}.</li>
+    <li>All values on this page come from the Python engine; the page does no calculations.</li></ul>`;
+}
+
+function render() { header(); ladder(); cprBox(); pivots(); chart(); indicators(); mtf(); foot(); }
+$("period").addEventListener("click", e => { const b = e.target.closest("button"); if (b) { state.p = b.dataset.p; render(); } });
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { ladder(); chart(); }, 150); });
+render();
+</script>
+</body>
+</html>

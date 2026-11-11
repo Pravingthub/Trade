@@ -1,0 +1,5 @@
+# Runtime
+numpy>=1.26
+pandas>=2.2
+fastapi>=0.115
+uvicorn[standard]>=0.30
