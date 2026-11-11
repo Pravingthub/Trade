@@ -138,10 +138,16 @@ def build(out: Path, provider: str = "fixture", news_db: Path | None = None, jou
             ind = s.indicators(i, "day", as_of)
             mtf = s.multi_timeframe(i, as_of)
             prev_close = float(daily["close"].iloc[-2])
+            import pravin_watch as Wt
+            cprs = {p: s.cpr(i, p, as_of) for p in ("day", "week", "month")}
+            pivs = {p: s.pivots(i, p, as_of) for p in ("day", "week", "month")}
+            z = Wt.zones(Wt.collect_levels(cprs, pivs), b["last_close"], b["atr14"])
+            behaviour = Wt.cpr_behaviour(s.cpr_history(i, 250, as_of)["sessions"])
             entry.update({
+                "watch": {**z, "headline": Wt.headline(cprs, b["last_close"], z["above"], z["below"])},
+                "behaviour": behaviour,
                 "change": b["last_close"] - prev_close, "change_pct": (b["last_close"] / prev_close - 1) * 100,
-                "cpr": {p: s.cpr(i, p, as_of) for p in ("day", "week", "month")},
-                "pivots": {p: s.pivots(i, p, as_of) for p in ("day", "week", "month")},
+                "cpr": cprs, "pivots": pivs,
                 "history": s.cpr_history(i, 40, as_of), "indicators": ind, "session": s.session_levels(i, as_of),
                 "mtf": mtf, "posture": posture(b, ind, mtf), "verdict": verdict(b, brief),
                 "options": option_check(s, i, b, as_of),
@@ -150,7 +156,7 @@ def build(out: Path, provider: str = "fixture", news_db: Path | None = None, jou
     news, news_health = [], {"never_fetched": True}
     if news_db.exists():
         con = N.connect(news_db)
-        news = [dict(r) for r in con.execute("SELECT publisher, title, link, impact, reasons, affects, published_utc "
+        news = [dict(r) for r in con.execute("SELECT publisher, title, link, impact, bias, reasons, affects, published_utc "
                                              "FROM news ORDER BY COALESCE(published_utc, ingested_utc) DESC LIMIT 12")]
         news_health = N.health(con)
     jpath = journal_db or ROOT / "journal.db"

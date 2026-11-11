@@ -111,6 +111,35 @@ tr:last-child td{border-bottom:0}
 .feed li.empty{display:block}
 .empty{color:var(--dim);font-size:12.5px;padding:6px 0;margin:0}
 .note{font-size:11.5px;color:var(--dim);margin:8px 0 0}
+.zgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px}
+@media (max-width:560px){.zgrid{grid-template-columns:1fr}}
+.zh{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-bottom:4px}
+.zone{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:7px 0 7px 9px;border-bottom:1px solid var(--line);border-left:3px solid var(--line)}
+.zone:last-child{border-bottom:0}
+.zone.res{border-left-color:var(--bear)} .zone.sup{border-left-color:var(--bull)}
+.zone .px{font-size:13px;font-weight:500} .zone .dist{font-size:12px;text-align:right}
+.zone .mem{grid-column:1/-1;font-size:11.5px;color:var(--dim)}
+.dots{display:inline-flex;gap:2px;vertical-align:middle;margin-left:6px}
+.dots i{width:6px;height:6px;border-radius:50%;background:var(--line)} .dots i.on{background:var(--cpr)}
+.tf{display:inline-block;font-size:10px;font-weight:600;padding:0 4px;border-radius:3px;margin-left:3px;background:var(--cpr-t);color:var(--cpr)}
+.read{margin:0;padding-left:0;list-style:none}
+.read li{font-size:13px;padding:2px 0} .read li:first-child{font-weight:600}
+.ins{list-style:none;margin:8px 0 0;padding:0}
+.ins li{display:grid;grid-template-columns:10px 1fr auto;gap:8px;align-items:baseline;padding:5px 0;border-top:1px dashed var(--line);font-size:12.5px}
+.ins i{width:8px;height:8px;border-radius:50%;background:var(--dim);display:inline-block}
+.ins i.bull{background:var(--bull)} .ins i.bear{background:var(--bear)} .ins i.warn{background:var(--warn)}
+.ins .n{font-size:11px;color:var(--dim)}
+.feed li.b-supportive{box-shadow:inset 3px 0 0 var(--bull);padding-left:9px}
+.feed li.b-adverse{box-shadow:inset 3px 0 0 var(--bear);padding-left:9px}
+.feed li.b-check,.feed li.b-mixed{box-shadow:inset 3px 0 0 var(--warn);padding-left:9px}
+.feed li.b-neutral{box-shadow:inset 3px 0 0 var(--cpr);padding-left:9px}
+.feed li.b-routine{box-shadow:inset 3px 0 0 var(--line);padding-left:9px}
+.bias{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:1px 5px;border-radius:3px;height:fit-content;white-space:nowrap}
+.bias.supportive{background:var(--bull-t);color:var(--bull)} .bias.adverse{background:var(--bear-t);color:var(--bear)}
+.bias.check,.bias.mixed{background:var(--warn-t);color:var(--warn)} .bias.neutral{background:var(--cpr-t);color:var(--cpr)}
+.bias.routine{background:var(--panel2);color:var(--dim)}
+.legend{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 6px}
+.sum{font-size:12.5px;margin:0 0 6px}
 footer{max-width:1520px;margin:0 auto 28px;padding:0 16px;color:var(--dim);font-size:12px}
 footer .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:6px 18px;margin-bottom:8px}
 footer b{color:var(--muted);font-weight:500}
@@ -135,16 +164,22 @@ footer b{color:var(--muted);font-weight:500}
   </div>
 
   <div class="stack c6">
+    <section class="p"><div class="ph"><h2 id="wth">What to watch</h2><div class="seg" id="instseg" aria-label="Instrument"></div></div>
+      <div class="pb" id="watch"></div></section>
     <section class="p ladder"><div class="ph"><h2 id="lvh">Levels</h2>
       <div class="seg" id="period"><button data-p="day" aria-pressed="true">Daily</button><button data-p="week" aria-pressed="false">Weekly</button><button data-p="month" aria-pressed="false">Monthly</button></div>
       </div><div class="pb"><div id="ladder"></div><div class="note" id="srcnote"></div></div></section>
-    <section class="p chart"><div class="ph"><h2>Daily CPR · last 40 sessions</h2><span class="aside">dashed = untouched (virgin)</span></div>
-      <div class="pb"><div id="chart"></div><div class="readout" id="readout"></div></div></section>
+    <section class="p chart"><div class="ph"><h2>Daily CPR · last 40 sessions + today</h2><span class="aside">dashed = untouched · ▲ narrow CPR day</span></div>
+      <div class="pb"><div id="chart"></div><div class="readout" id="readout"></div>
+      <div class="lbl" style="margin-top:12px">What this instrument does around its CPR</div><ul class="ins" id="insights"></ul><p class="note" id="insnote"></p></div></section>
   </div>
 
   <div class="stack c3">
     <section class="p"><div class="ph"><h2>Risk desk</h2><span class="aside">₹1,00,000 capital</span></div><div class="pb" id="risk"></div></section>
-    <section class="p"><div class="ph"><h2>Official announcements</h2><span class="aside" id="newsaside"></span></div><div class="pb"><ul class="feed" id="news"></ul></div></section>
+    <section class="p"><div class="ph"><h2>Official announcements</h2>
+      <div class="seg" id="nf"><button data-f="all" aria-pressed="true">All</button><button data-f="notable" aria-pressed="false">Notable</button><button data-f="bank" aria-pressed="false">Banking</button></div></div>
+      <div class="pb"><p class="sum" id="newssum"></p><div class="legend"><span class="bias supportive">supportive</span><span class="bias adverse">adverse</span><span class="bias check">high impact · read</span><span class="bias neutral">relevant</span><span class="bias routine">routine</span></div>
+      <ul class="feed" id="news"></ul><p class="note" id="newsaside"></p></div></section>
     <section class="p"><div class="ph"><h2>Events</h2><span class="aside">events.csv</span></div><div class="pb"><ul class="feed" id="events"></ul></div></section>
   </div>
 
@@ -155,7 +190,7 @@ footer b{color:var(--muted);font-weight:500}
 
 <script>
 const DATA = __DATA__;
-const S = { i: Math.max(0, DATA.instruments.findIndex(x => x.verdict)), p: "day" };
+const S = { i: Math.max(0, DATA.instruments.findIndex(x => x.verdict)), p: "day", nf: "all" };
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const f = (v, d = 2) => v == null || Number.isNaN(+v) ? "—" : Number(v).toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -217,6 +252,26 @@ function posture() {
   }).join("")}</tbody></table><p class="note">A setup can alert only after passing out-of-sample tests, then paper trading.</p>`;
 }
 
+function instseg() {
+  $("instseg").innerHTML = DATA.instruments.map((x, k) => x.verdict ? `<button data-k="${k}" aria-pressed="${k === S.i}">${esc({ "NIFTY 50": "NIFTY", "NIFTY BANK": "BANK NIFTY", "NIFTY FUT": "NIFTY FUT" }[x.meta.symbol] || x.meta.symbol)}</button>` : "").join("");
+  $("instseg").querySelectorAll("button").forEach(b => b.onclick = () => { S.i = +b.dataset.k; render(); });
+}
+
+function watch() {
+  const w = cur().watch;
+  $("wth").textContent = `What to watch · ${cur().meta.symbol}`;
+  const dots = n => `<span class="dots" title="strength ${n}/5">${[1, 2, 3, 4, 5].map(k => `<i class="${k <= n ? "on" : ""}"></i>`).join("")}</span>`;
+  const zone = (z, cls) => `<div class="zone ${cls}"><span class="px num">${f(z.low, 0)}${z.high - z.low >= 1 ? "–" + f(z.high, 0) : ""}${dots(z.strength)}</span>
+    <span class="dist num ${cls === "res" ? "bear" : "bull"}">${z.distance >= 0 ? "+" : ""}${f(z.distance, 0)} pts · ${f(Math.abs(z.distance_atr), 2)} ATR</span>
+    <span class="mem">${z.timeframes.map(t => `<span class="tf">${t}</span>`).join("")} ${esc(z.members.join(" · "))}</span></div>`;
+  const at = w.at_price.length ? `<p class="sum warn">Price is sitting inside a zone now: ${w.at_price.map(z => esc(z.members.join(", "))).join("; ")}.</p>` : "";
+  $("watch").innerHTML = `<ul class="read">${w.headline.map(l => `<li>${esc(l)}</li>`).join("")}</ul>${at}
+    <div class="zgrid">
+      <div><div class="zh bear">Resistance above</div>${w.above.length ? [...w.above].map(z => zone(z, "res")).join("") : '<p class="empty">No levels within 2.5 ATR above.</p>'}</div>
+      <div><div class="zh bull">Support below</div>${w.below.length ? w.below.map(z => zone(z, "sup")).join("") : '<p class="empty">No levels within 2.5 ATR below.</p>'}</div>
+    </div><p class="note">Zones merge daily (D), weekly (W) and monthly (M) levels lying within ${f(w.tolerance_points, 0)} points of each other. More dots = more timeframes and more important levels agreeing. Nearest first.</p>`;
+}
+
 function spread(items, gap, lo, hi) {
   items.sort((a, b) => a.y - b.y);
   for (let k = 1; k < items.length; k++) if (items[k].ly - items[k - 1].ly < gap) items[k].ly = items[k - 1].ly + gap;
@@ -265,10 +320,10 @@ function ladder() {
 }
 
 function chart() {
-  const rows = cur().history.sessions;
+  const rows = cur().history.sessions, today = cur().cpr.day.levels, cut = cur().behaviour.narrow_cut_pct;
   const Wd = Math.max(320, $("chart").clientWidth || 700), H = Wd < 600 ? 230 : 280, l = 2, r = 60, t = 10, b = 22;
-  const hi = Math.max(...rows.map(x => Math.max(x.high, x.cpr_top))), lo = Math.min(...rows.map(x => Math.min(x.low, x.cpr_bottom)));
-  const y = v => t + (hi - v) / (hi - lo) * (H - t - b), step = (Wd - l - r) / rows.length, cw = Math.max(3, step * .45);
+  const hi = Math.max(today.top, ...rows.map(x => Math.max(x.high, x.cpr_top))), lo = Math.min(today.bottom, ...rows.map(x => Math.min(x.low, x.cpr_bottom)));
+  const y = v => t + (hi - v) / (hi - lo) * (H - t - b), step = (Wd - l - r) / (rows.length + 1), cw = Math.max(3, step * .45);
   const svg = el("svg", { viewBox: `0 0 ${Wd} ${H}`, role: "img", "aria-label": "Daily candles with CPR bands" });
   for (let g = 0; g <= 4; g++) { const v = lo + (hi - lo) * g / 4; svg.appendChild(el("line", { x1: l, x2: Wd - r, y1: y(v), y2: y(v), stroke: css("--line") }));
     svg.appendChild(el("text", { x: Wd - r + 6, y: y(v) + 4, "font-size": 10.5, fill: css("--dim"), "font-family": MONO }, f(v, 0))); }
@@ -280,14 +335,23 @@ function chart() {
     const up = x.close >= x.open, c = up ? css("--bull") : css("--bear");
     svg.appendChild(el("line", { x1: cx, x2: cx, y1: y(x.high), y2: y(x.low), stroke: c }));
     svg.appendChild(el("rect", { x: cx - cw / 2, width: cw, y: y(Math.max(x.open, x.close)), height: Math.max(1, Math.abs(y(x.open) - y(x.close))), fill: up ? css("--panel") : c, stroke: c }));
+    if (cut != null && x.width_pct <= cut) svg.appendChild(el("path", { d: `M${cx},${H - b + 2} l4,7 h-8 z`, fill: css("--warn") }));
     if (k % every === 0) svg.appendChild(el("text", { x: k === 0 ? l : cx, y: H - 6, "text-anchor": k === 0 ? "start" : "middle", "font-size": 10.5, fill: css("--dim") }, dt(x.session, { day: "numeric", month: "short" })));
   });
-  const show = k => { const x = rows[k]; hl.setAttribute("x", l + step * k); hl.setAttribute("opacity", 1);
+  const tx = l + step * rows.length;
+  svg.appendChild(el("rect", { x: tx + 1, width: step - 2, y: y(today.top), height: Math.max(2, y(today.bottom) - y(today.top)), fill: css("--warn-t"), stroke: css("--warn"), "stroke-dasharray": "3 2" }));
+  svg.appendChild(el("text", { x: tx + step - 1, y: Math.min(H - b - 4, y(today.bottom) + 14), "text-anchor": "end", "font-size": 10, fill: css("--warn"), "font-weight": 600 }, "TODAY"));
+  const show = k => { if (k >= rows.length) { hl.setAttribute("x", tx); hl.setAttribute("opacity", 1);
+      $("readout").innerHTML = `<b>Today's CPR</b> ${f(today.bottom)}–${f(today.top)} (${f(today.width_pct, 3)}%) · pivot ${f(today.pivot)}`; return; }
+    const x = rows[k]; hl.setAttribute("x", l + step * k); hl.setAttribute("opacity", 1);
     $("readout").innerHTML = `<b>${dt(x.session)}</b> · opened <b>${x.open_vs_cpr}</b> CPR ${f(x.cpr_bottom)}–${f(x.cpr_top)} (${f(x.width_pct, 3)}%) · H ${f(x.high)} L ${f(x.low)} C ${f(x.close)}${x.virgin ? " · <b>virgin</b>" : ""}`; };
   const pick = e => { const p = svg.getBoundingClientRect(), k = Math.floor(((e.clientX - p.left) / p.width * Wd - l) / step); if (k >= 0 && k < rows.length) show(k); };
   svg.addEventListener("pointermove", pick); svg.addEventListener("pointerdown", pick);
   $("chart").replaceChildren(svg);
-  $("readout").textContent = `${f(cur().history.virgin_share * 100, 0)}% of these sessions left the CPR untouched. Hover or tap a session.`;
+  $("readout").textContent = "Hover or tap a session. The amber band on the right is today's CPR.";
+  const B = cur().behaviour;
+  $("insights").innerHTML = B.insights.map(i => `<li><i class="${i.tone}"></i><span>${esc(i.text)}</span><span class="n">n=${i.n}</span></li>`).join("");
+  $("insnote").textContent = B.note + (DATA.brief.demo ? " Computed on DEMO prices." : "");
 }
 
 function risk() {
@@ -314,13 +378,18 @@ function risk() {
 }
 
 function feeds() {
-  const n = DATA.news, h = DATA.news_health;
-  $("newsaside").textContent = h.never_fetched ? "not fetched" : (h.failing && h.failing.length ? "failing: " + h.failing.join(", ") : "official feeds");
-  const notable = n.filter(a => a.impact !== "low").length;
-  $("news").innerHTML = (n.length ? `<li class="empty">${notable ? notable + " notable item(s)." : "Nothing market-moving: all recent items are routine."}</li>` : "") +
-    (n.length ? n.map(a => `<li><span class="imp ${a.impact}">${a.impact}</span><a class="t" href="${esc(a.link)}" target="_blank" rel="noopener">${esc(a.title)}</a>
-    <span class="m">${esc(a.publisher)} · ${a.published_utc ? new Date(a.published_utc).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) + " IST" : ""} · ${esc(a.reasons)}</span></li>`).join("")
-    : `<li class="empty">No announcements stored. Run <span class="mono">pravin_news.py fetch</span>.</li>`);
+  const all = DATA.news, h = DATA.news_health;
+  const BL = { supportive: "supportive", adverse: "adverse", check: "read now", mixed: "mixed", neutral: "relevant", routine: "routine" };
+  const keep = a => S.nf === "all" || (S.nf === "notable" ? a.bias !== "routine" : String(a.affects || "").includes("BANKNIFTY"));
+  const n = all.filter(keep);
+  const cnt = b => all.filter(a => a.bias === b).length;
+  $("newssum").innerHTML = all.length ? `<span class="bull">${cnt("supportive")} supportive</span> · <span class="bear">${cnt("adverse")} adverse</span> · <span class="warn">${cnt("check") + cnt("mixed")} to read</span> · ${cnt("routine")} routine`
+    : "";
+  $("newsaside").textContent = (h.never_fetched ? "Feeds not fetched yet." : (h.failing && h.failing.length ? "Failing: " + h.failing.join(", ") + "." : "Sources: RBI, SEBI, BSE official feeds."))
+    + " Colours come from transparent keyword rules in pravin_news.py, not a forecast.";
+  $("news").innerHTML = n.length ? n.map(a => `<li class="b-${a.bias || "routine"}"><span class="bias ${a.bias || "routine"}">${BL[a.bias] || "routine"}</span><a class="t" href="${esc(a.link)}" target="_blank" rel="noopener">${esc(a.title)}</a>
+    <span class="m">${esc(a.publisher)} · ${a.published_utc ? new Date(a.published_utc).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) + " IST" : ""} · ${esc(a.impact)} impact · ${esc(a.reasons)}</span></li>`).join("")
+    : `<li class="empty">${all.length ? "Nothing in this filter. All recent items are routine." : "No announcements stored. Run <span class='mono'>pravin_news.py fetch</span>."}</li>`;
   const ev = DATA.brief.events;
   $("events").innerHTML = ev.length ? ev.map(e => `<li><span class="imp ${e.impact}">${esc(e.impact)}</span><span class="t">${esc(e.event)}</span><span class="m">${dt(e.date)} ${esc(e.time_ist || "")} · ${esc(e.region || "")}</span></li>`).join("")
     : `<li class="empty">Nothing scheduled in the next 7 days in events.csv. Add RBI, Fed, CPI and results dates there.</li>`;
@@ -359,8 +428,9 @@ function foot() {
     <div>${esc(DATA.brief.disclaimer)} Built ${esc(DATA.status.built_ist.replace("T", " "))} IST from ${esc(DATA.status.provider)}. Calendar: ${esc(DATA.status.calendar)}. Every number on this screen comes from the Python engine; the page calculates nothing.</div>`;
 }
 
-function render() { topbar(); tape(); if (!cur().verdict) return; verdict(); posture(); ladder(); chart(); risk(); feeds(); options(); mtf(); foot(); }
+function render() { topbar(); tape(); if (!cur().verdict) return; instseg(); watch(); verdict(); posture(); ladder(); chart(); risk(); feeds(); options(); mtf(); foot(); }
 $("period").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S.p = b.dataset.p; [...$("period").children].forEach(x => x.setAttribute("aria-pressed", String(x === b))); ladder(); });
+$("nf").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S.nf = b.dataset.f; [...$("nf").children].forEach(x => x.setAttribute("aria-pressed", String(x === b))); feeds(); });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
 let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { ladder(); chart(); }, 150); });
 render();

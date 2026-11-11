@@ -88,3 +88,29 @@ def test_sources_file_lists_only_enabled_with_urls():
     ids = {s["id"] for s in srcs}
     assert {"rbi_press", "sebi"} <= ids and "nse_announcements" not in ids
     assert all(s["url"].startswith("https://") for s in srcs)
+
+
+@pytest.mark.parametrize("title,bias", [
+    ("RBI reduces the policy repo rate by 25 basis points", "supportive"),
+    ("Monetary Policy Committee increases the policy repo rate", "adverse"),
+    ("Monetary Policy Statement - Resolution of the MPC", "check"),
+    ("RBI to conduct Variable Rate Repo (VRR) auction under LAF", "supportive"),
+    ("RBI to conduct 3-day Variable Rate Reverse Repo (VRRR) auction", "adverse"),
+    ("Auction of Government of India Dated Security", "routine"),
+    ("Revision in lot size of index derivatives contracts", "neutral"),
+])
+def test_bias_rules(title, bias):
+    assert N.score(title, "")["bias"] == bias
+
+
+def test_old_database_is_migrated(tmp_path):
+    import sqlite3
+    p = tmp_path / "old.db"
+    con = sqlite3.connect(p)
+    con.executescript("CREATE TABLE news (id TEXT PRIMARY KEY, source TEXT, publisher TEXT, title TEXT, link TEXT, "
+                      "published_utc TEXT, ingested_utc TEXT, impact TEXT, score INTEGER, reasons TEXT, affects TEXT);"
+                      "INSERT INTO news VALUES ('x','s','RBI','RBI cuts repo rate','l',NULL,'2026-11-11','low',0,'','');")
+    con.commit(); con.close()
+    new = N.connect(p)
+    r = new.execute("SELECT bias, impact FROM news").fetchone()
+    assert r["bias"] == "supportive" and r["impact"] == "high"

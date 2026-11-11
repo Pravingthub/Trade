@@ -35,26 +35,36 @@ UA = "PRAVIN-AI personal research (RSS reader)"
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS news (
     id TEXT PRIMARY KEY, source TEXT, publisher TEXT, title TEXT, link TEXT,
-    published_utc TEXT, ingested_utc TEXT, impact TEXT, score INTEGER, reasons TEXT, affects TEXT
+    published_utc TEXT, ingested_utc TEXT, impact TEXT, score INTEGER, reasons TEXT, affects TEXT, bias TEXT
 );
 CREATE TABLE IF NOT EXISTS fetches (source TEXT, at_utc TEXT, ok INTEGER, items INTEGER, error TEXT);
 """
 
-# Transparent, editable rules. Score >= 6 is high, >= 3 medium, else low.
+# Transparent, editable rules: (pattern, points, reason, affects, bias).
+# Score >= 6 is high impact, >= 3 medium, else low. Bias is what the headline
+# usually means for Indian equities: supportive, adverse, or None (no direction).
 RULES = [
-    (r"monetary policy|policy repo|repo rate|\bmpc\b|crr\b|slr\b|rate decision", 8, "monetary policy", "BANKNIFTY|NIFTY50"),
-    (r"governor'?s statement|statement on developmental and regulatory", 6, "RBI governor statement", "BANKNIFTY|NIFTY50"),
-    (r"liquidity|vrr\b|vrrr\b|variable rate (reverse )?repo|open market operation|\bomo\b", 3, "liquidity operation", "BANKNIFTY"),
-    (r"\bf&o\b|derivative|futures|options|expiry|lot size|margin|position limit", 5, "derivatives rules", "NIFTY50|BANKNIFTY"),
-    (r"trading hours|market timing|trading holiday|special (live )?trading session|muhurat", 6, "market timing", "NIFTY50|BANKNIFTY"),
-    (r"inflation|cpi\b|wpi\b|gdp|index of industrial production|\biip\b|current account|forex reserves", 4, "macro data", "NIFTY50"),
-    (r"foreign portfolio|\bfpi\b|\bfii\b|external commercial", 3, "foreign flows", "NIFTY50"),
-    (r"circuit|surveillance|ban period|\basm\b|\bgsm\b", 3, "market surveillance", "NIFTY50"),
-    (r"penalty|cancels certificate of registration|directions under section 35a|co-operative bank|nbfc", -4,
-     "routine enforcement", ""),
+    (r"(cuts?|reduc\w*|lower\w*) (in )?(the )?(policy )?repo|repo rate (cut|reduced|lowered)|rate cut", 8, "rate cut",
+     "BANKNIFTY|NIFTY50", "supportive"),
+    (r"(hikes?|increas\w*|rais\w*) (in )?(the )?(policy )?repo|repo rate (hike|hiked|increased|raised)|rate hike", 8, "rate hike",
+     "BANKNIFTY|NIFTY50", "adverse"),
+    (r"monetary policy|policy repo|repo rate|\bmpc\b|\bcrr\b|\bslr\b|rate decision", 8, "monetary policy", "BANKNIFTY|NIFTY50", None),
+    (r"governor'?s statement|statement on developmental and regulatory", 6, "RBI governor statement", "BANKNIFTY|NIFTY50", None),
+    (r"variable rate repo \(vrr\)|\bvrr\b auction|omo purchase|open market purchase|crr (cut|reduc)", 3,
+     "liquidity injection", "BANKNIFTY", "supportive"),
+    (r"variable rate reverse repo|\bvrrr\b|omo sale|open market sale", 3, "liquidity absorption", "BANKNIFTY", "adverse"),
+    (r"\bf&o\b|derivative|futures|options|expiry|lot size|margin|position limit", 5, "derivatives rules", "NIFTY50|BANKNIFTY", None),
+    (r"\bban\b|prohibit|restrict|tighten|increase in margin|higher margin|(stt|tax) (hike|increase)", 2, "tightening",
+     "NIFTY50|BANKNIFTY", "adverse"),
+    (r"relax|easing of|ease of|reduction in margin|lower margin", 2, "easing", "NIFTY50|BANKNIFTY", "supportive"),
+    (r"trading hours|market timing|trading holiday|special (live )?trading session|muhurat", 6, "market timing", "NIFTY50|BANKNIFTY", None),
+    (r"inflation|cpi\b|wpi\b|gdp|index of industrial production|\biip\b|current account|forex reserves", 4, "macro data", "NIFTY50", None),
+    (r"foreign portfolio|\bfpi\b|\bfii\b|external commercial", 3, "foreign flows", "NIFTY50", None),
+    (r"circuit|surveillance|ban period|\basm\b|\bgsm\b", 3, "market surveillance", "NIFTY50", None),
+    (r"penalty|cancels certificate of registration|directions under section 35a|co-operative bank|nbfc|supersession", -4,
+     "routine enforcement", "", None),
     (r"auction of (state )?government|government of india dated securit|state government securities|treasury bills|"
-     r"money market operations|\bsgb\b|sovereign gold", -3,
-     "routine operations", ""),
+     r"money market operations|\bsgb\b|sovereign gold", -3, "routine operations", "", None),
 ]
 
 
@@ -108,14 +118,23 @@ def parse_feed(xml_bytes: bytes, source: str, publisher: str) -> list[Item]:
 
 def score(title: str, default_affects: str) -> dict:
     t = title.lower()
-    s, reasons, affects = 0, [], set(filter(None, default_affects.split("|")))
-    for pat, pts, why, aff in RULES:
+    s, reasons, affects, biases = 0, [], set(filter(None, default_affects.split("|"))), set()
+    for pat, pts, why, aff, bias in RULES:
         if re.search(pat, t):
             s += pts
             reasons.append(why)
             affects |= set(filter(None, aff.split("|")))
+            if bias:
+                biases.add(bias)
     impact = "high" if s >= 6 else "medium" if s >= 3 else "low"
-    return {"score": s, "impact": impact, "reasons": ", ".join(reasons) or "no rule matched", "affects": "|".join(sorted(affects))}
+    if len(biases) == 2:
+        bias = "mixed"
+    elif biases:
+        bias = biases.pop()
+    else:
+        bias = "check" if impact == "high" else "neutral" if impact == "medium" else "routine"
+    return {"score": s, "impact": impact, "bias": bias, "reasons": ", ".join(dict.fromkeys(reasons)) or "no rule matched",
+            "affects": "|".join(sorted(affects))}
 
 
 def item_id(i: Item) -> str:
@@ -127,6 +146,14 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     con = sqlite3.connect(path or DB_PATH)
     con.row_factory = sqlite3.Row
     con.executescript(SCHEMA)
+    cols = {r["name"] for r in con.execute("PRAGMA table_info(news)")}
+    if "bias" not in cols:                                   # databases created before the bias column existed
+        con.execute("ALTER TABLE news ADD COLUMN bias TEXT")
+    for r in con.execute("SELECT id, title, affects FROM news WHERE bias IS NULL").fetchall():
+        sc = score(r["title"], r["affects"] or "")
+        con.execute("UPDATE news SET bias=?, impact=?, score=?, reasons=? WHERE id=?",
+                    (sc["bias"], sc["impact"], sc["score"], sc["reasons"], r["id"]))
+    con.commit()
     return con
 
 
@@ -135,10 +162,11 @@ def store(con, items: list[Item], default_affects: str, now: datetime | None = N
     new = 0
     for i in items:
         sc = score(i.title, default_affects)
-        cur = con.execute("INSERT OR IGNORE INTO news VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        cur = con.execute("INSERT OR IGNORE INTO news (id, source, publisher, title, link, published_utc, ingested_utc, impact,"
+                          " score, reasons, affects, bias) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                           (item_id(i), i.source, i.publisher, i.title, i.link,
                            i.published.astimezone(timezone.utc).isoformat() if i.published else None,
-                           now.isoformat(), sc["impact"], sc["score"], sc["reasons"], sc["affects"]))
+                           now.isoformat(), sc["impact"], sc["score"], sc["reasons"], sc["affects"], sc["bias"]))
         new += cur.rowcount
     con.commit()
     return new
@@ -206,7 +234,8 @@ def main(argv=None):
     else:
         for r in latest(con, a.hours, a.min_impact):
             when = (r["published_utc"] or r["ingested_utc"])[:16]
-            print(f"[{r['impact'].upper():6}] {when}Z {r['publisher']}: {r['title']}  ({r['reasons']}; affects {r['affects'] or '-'})")
+            tag = f"[{r['impact'].upper():6}|{(r['bias'] or '').upper():10}]"
+            print(f"{tag} {when}Z {r['publisher']}: {r['title']}  ({r['reasons']}; affects {r['affects'] or '-'})")
 
 
 if __name__ == "__main__":

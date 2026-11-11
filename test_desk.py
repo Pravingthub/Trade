@@ -42,3 +42,14 @@ def test_page_loads_nothing_but_fonts_and_has_empty_states(tmp_path):
 def test_tone_mapping():
     assert D.tone_of("x", "trending_bullish") == "bull" and D.tone_of("x", "below") == "bear"
     assert D.tone_of("x", "conflicted") == "warn" and D.tone_of("x", "normal") == "neutral"
+
+
+def test_watch_and_behaviour_present_for_indices(tmp_path):
+    _, d = build(tmp_path)
+    for i in d["instruments"][:2]:
+        w = i["watch"]
+        assert w["headline"][0].startswith("Close ")
+        assert all(z["low"] > i["brief"]["last_close"] for z in w["above"])
+        assert all(z["high"] < i["brief"]["last_close"] for z in w["below"])
+        assert [z["mid"] for z in w["above"]] == sorted(z["mid"] for z in w["above"])     # nearest first
+        assert i["behaviour"]["insights"] and "Not a backtest" in i["behaviour"]["note"]
