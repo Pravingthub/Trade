@@ -40,15 +40,58 @@ def read_csv_rows(path: Path) -> list[dict]:
     return list(csv.DictReader(lines))
 
 
-def load_events(path: Path, start: date, days: int = 7) -> list[dict]:
+def calendar_status(path: Path, as_of: date, max_review_age_days: int = 7) -> dict:
+    """Distinguishes 'not checked' from 'checked and nothing scheduled'."""
+    if not path.exists():
+        return {"status": "not_checked", "checked": False, "detail": "events.csv missing", "unverified_rows": 0}
+    reviewed = None
+    for line in path.read_text().splitlines():
+        if line.lower().startswith("# reviewed:"):
+            v = line.split(":", 1)[1].strip()
+            try:
+                reviewed = date.fromisoformat(v) if v else None
+            except ValueError:
+                reviewed = None
+    rows = read_csv_rows(path)
+    unverified = sum(1 for r in rows if (r.get("verified") or "").strip().lower() != "yes")
+    if reviewed is None:
+        return {"status": "not_checked", "checked": False, "reviewed": None, "unverified_rows": unverified,
+                "detail": "no review date in events.csv"}
+    age = (as_of - reviewed).days
+    if age > max_review_age_days:
+        return {"status": "stale", "checked": False, "reviewed": reviewed.isoformat(), "unverified_rows": unverified,
+                "detail": f"last reviewed {age} days ago"}
+    return {"status": "checked", "checked": True, "reviewed": reviewed.isoformat(), "unverified_rows": unverified,
+            "detail": f"reviewed {reviewed.isoformat()}"}
+
+
+def affected_session(d: date, time_ist: str, is_session) -> date:
+    """The trading session an event can move: events after 15:30 IST (or on a
+    non-trading day) affect the next session."""
+    after_close = False
+    if time_ist:
+        hh, mm = (int(x) for x in time_ist.split(":")[:2])
+        after_close = (hh, mm) >= (15, 30)
+    s = d + timedelta(days=1) if after_close else d
+    while is_session is not None and not is_session(s):
+        s += timedelta(days=1)
+    return s
+
+
+def load_events(path: Path, start: date, days: int = 7, is_session=None) -> list[dict]:
+    """Verified events only. Rows not marked verified=yes are ignored.
+    `today` means the event can move the session on `start`."""
     out = []
     for r in read_csv_rows(path):
+        if (r.get("verified") or "").strip().lower() != "yes":
+            continue
         try:
             d = date.fromisoformat(r["date"])
         except (KeyError, ValueError):
             continue
-        if start <= d < start + timedelta(days=days):
-            out.append({**r, "date": d.isoformat(), "today": d == start})
+        aff = affected_session(d, (r.get("time_ist") or "").strip(), is_session)
+        if start <= aff < start + timedelta(days=days) or start <= d < start + timedelta(days=days):
+            out.append({**r, "date": d.isoformat(), "affects_session": aff.isoformat(), "today": aff == start})
     return sorted(out, key=lambda r: (r["date"], r.get("time_ist", "")))
 
 
@@ -128,10 +171,14 @@ def build_brief(service, as_of: date | None = None, ids: list[str] | None = None
                      "detail": f"{prov.name}; last session {prov.sessions[-1]}"}]
     if prov.data_mode.value == "simulated":
         completeness[0]["warning"] = "DEMO: prices are simulated"
-    events = load_events(events_path, as_of)
+    events = load_events(events_path, as_of, is_session=service.cal.is_session)
+    calendar = calendar_status(events_path, as_of)
     glob = load_global(global_path, now)
-    completeness.append({"input": "events", "status": "ok" if read_csv_rows(events_path) else "missing",
-                         "detail": f"{len(events)} in the next 7 days" if read_csv_rows(events_path) else "events.csv empty"})
+    completeness.append({"input": "event calendar",
+                         "status": ("checked: " + (f"{len(events)} event(s) in 7 days" if events else "nothing scheduled in 7 days"))
+                         if calendar["checked"] else calendar["status"].replace("_", " "),
+                         "detail": calendar["detail"] + (f"; {calendar['unverified_rows']} unverified row(s) ignored"
+                                                         if calendar["unverified_rows"] else "")})
     completeness.append({"input": "global markets", "status": "missing" if not glob else
                          ("stale" if any(g["stale"] for g in glob) else "ok"),
                          "detail": f"{len(glob)} rows" if glob else "no licensed feed configured; global_markets.csv empty"})
@@ -191,7 +238,7 @@ def build_brief(service, as_of: date | None = None, ids: list[str] | None = None
             "setups": setup_status(iid, d, w, results_dir),
         })
     return {
-        "for_session": as_of.isoformat(), "generated_ist": now.isoformat(timespec="minutes"),
+        "for_session": as_of.isoformat(), "generated_ist": now.isoformat(timespec="minutes"), "calendar": calendar,
         "demo": prov.data_mode.value == "simulated",
         "completeness": completeness, "events": events, "event_risk_today": bool(high_event_today),
         "global": glob, "announcements": announcements,
@@ -220,8 +267,10 @@ def to_markdown(b: dict) -> str:
     L += ["## Data completeness", ""]
     L += [f"- {c['input']}: {c['status']}{' — ' + c['detail'] if c.get('detail') else ''}" for c in b["completeness"]]
     L += ["", "## Events this week", ""]
-    L += [f"- {e['date']} {e.get('time_ist', '')} {e.get('region', '')}: {e['event']} ({e.get('impact', '?')})"
-          for e in b["events"]] or ["- none entered in events.csv"]
+    cal = b["calendar"]
+    L += [f"- {e['date']} {e.get('time_ist', '')} {e.get('region', '')}: {e['event']} ({e.get('impact', '?')}; "
+          f"affects the {e['affects_session']} session)" for e in b["events"]] or [("- Calendar checked: nothing scheduled." if cal["checked"]
+                                     else f"- **Calendar NOT checked** ({cal['detail']}): event risk is unknown.")]
     if b["event_risk_today"]:
         L += ["", "**High-impact event today: expect wider ranges; setups are downgraded to watch-only around the event.**"]
     if b.get("announcements"):

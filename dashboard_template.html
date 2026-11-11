@@ -140,6 +140,17 @@ tr:last-child td{border-bottom:0}
 .bias.routine{background:var(--panel2);color:var(--dim)}
 .legend{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 6px}
 .sum{font-size:12.5px;margin:0 0 6px}
+.src{font-size:10.5px;color:var(--dim);letter-spacing:.03em}
+.layers{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:8px 0}
+.layers div{background:var(--panel2);border-radius:4px;padding:6px 8px}
+.layers .k{font-size:10px;color:var(--dim);letter-spacing:.07em;text-transform:uppercase}
+.cands{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+.cand{border:1px solid var(--line);border-radius:5px;padding:9px 11px;background:var(--panel2)}
+.cand .hd{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:4px}
+.cand .dec{font-size:11px;font-weight:700;letter-spacing:.06em;padding:1px 6px;border-radius:3px}
+.dec.NO_TRADE{background:var(--bear-t);color:var(--bear)} .dec.WATCH_ONLY{background:var(--warn-t);color:var(--warn)} .dec.PAPER_TRADE{background:var(--bull-t);color:var(--bull)}
+.cand ul{margin:4px 0 0;padding-left:16px;font-size:12px}
+.cand .lb{font-size:10px;color:var(--dim);letter-spacing:.07em;text-transform:uppercase;margin-top:6px}
 footer{max-width:1520px;margin:0 auto 28px;padding:0 16px;color:var(--dim);font-size:12px}
 footer .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:6px 18px;margin-bottom:8px}
 footer b{color:var(--muted);font-weight:500}
@@ -156,8 +167,10 @@ footer b{color:var(--muted);font-weight:500}
 
 <main class="desk">
   <section class="p c12 verdict" id="verdict" aria-label="Desk verdict"></section>
+  <section class="p c12"><div class="ph"><h2>Trade candidates</h2><span class="aside">no scores: nothing is calibrated yet · every gate must pass</span></div><div class="pb" id="cands"></div></section>
 
   <div class="stack c3">
+    <section class="p"><div class="ph"><h2>Market regime</h2><span class="aside" id="rgaside"></span></div><div class="pb" id="regime"></div></section>
     <section class="p"><div class="ph"><h2>Signals</h2><span class="aside">descriptive, not forecasts</span></div><div class="pb" id="posture"></div></section>
     <section class="p"><div class="ph"><h2>Opening scenarios</h2></div><div class="pb" id="scen"></div></section>
     <section class="p"><div class="ph"><h2>Setups</h2><span class="aside">gate: backtest</span></div><div class="pb scroll" id="setups"></div></section>
@@ -168,14 +181,14 @@ footer b{color:var(--muted);font-weight:500}
       <div class="pb" id="watch"></div></section>
     <section class="p ladder"><div class="ph"><h2 id="lvh">Levels</h2>
       <div class="seg" id="period"><button data-p="day" aria-pressed="true">Daily</button><button data-p="week" aria-pressed="false">Weekly</button><button data-p="month" aria-pressed="false">Monthly</button></div>
-      </div><div class="pb"><div id="ladder"></div><div class="note" id="srcnote"></div></div></section>
+      </div><div class="pb"><div id="ladder"></div><div class="note" id="srcnote"></div><div class="note" id="rawnote"></div></div></section>
     <section class="p chart"><div class="ph"><h2>Daily CPR · last 40 sessions + today</h2><span class="aside">dashed = untouched · ▲ narrow CPR day</span></div>
       <div class="pb"><div id="chart"></div><div class="readout" id="readout"></div>
       <div class="lbl" style="margin-top:12px">What this instrument does around its CPR</div><ul class="ins" id="insights"></ul><p class="note" id="insnote"></p></div></section>
   </div>
 
   <div class="stack c3">
-    <section class="p"><div class="ph"><h2>Risk desk</h2><span class="aside">₹1,00,000 capital</span></div><div class="pb" id="risk"></div></section>
+    <section class="p"><div class="ph"><h2>Risk desk</h2><span class="aside" id="capaside"></span></div><div class="pb" id="risk"></div></section>
     <section class="p"><div class="ph"><h2>Official announcements</h2>
       <div class="seg" id="nf"><button data-f="all" aria-pressed="true">All</button><button data-f="notable" aria-pressed="false">Notable</button><button data-f="bank" aria-pressed="false">Banking</button></div></div>
       <div class="pb"><p class="sum" id="newssum"></p><div class="legend"><span class="bias supportive">supportive</span><span class="bias adverse">adverse</span><span class="bias check">high impact · read</span><span class="bias neutral">relevant</span><span class="bias routine">routine</span></div>
@@ -212,6 +225,8 @@ function topbar() {
     pill(st.data_mode === "simulated" ? "warn" : "ok", st.data_mode === "simulated" ? "DATA · DEMO" : "DATA · " + st.data_mode.toUpperCase()),
     pill(oa && oa.status === "ok" ? "ok" : "warn", "ANNOUNCEMENTS · " + (oa ? oa.status.toUpperCase() : "—")),
     pill(bt.status === "ok" ? "ok" : "warn", "BACKTESTS · " + (bt.status === "ok" ? "LOADED" : "NONE")),
+    pill(cur().provenance && cur().provenance.health === "HEALTHY" ? "ok" : "bad", "HEALTH · " + (cur().provenance ? cur().provenance.health : "—")),
+    pill(b.calendar.checked ? "ok" : "warn", "CALENDAR · " + (b.calendar.checked ? "CHECKED" : b.calendar.status.replace("_", " ").toUpperCase())),
     pill("", "GLOBAL · NOT CONNECTED"),
     pill(DATA.guard.can_recommend ? "ok" : "bad", `GUARD · ${DATA.guard.trades_opened_today}/${b.risk.max_trades} TRADES`),
   ].join("");
@@ -230,14 +245,14 @@ function tape() {
 }
 
 function verdict() {
-  const x = cur(), v = x.verdict, r = DATA.brief.risk, g = DATA.guard;
+  const x = cur(), v = x.verdict, r = DATA.risk;
   $("verdict").innerHTML = `
-    <div><div class="lbl">Desk call · ${esc(x.meta.symbol)}</div><div class="call ${v.call.split(" ")[0]}">${esc(v.call)}</div><div class="why">${esc(v.why)}</div></div>
-    <div><div class="lbl">Gates · all must pass</div><ul class="gates">${v.gates.map(q => `<li class="${q.ok ? "ok" : "no"}"><span class="k">${q.ok ? "✓" : "✗"}</span><span>${esc(q.gate)}</span><span class="n">${esc(q.note)}</span></li>`).join("")}</ul></div>
+    <div><div class="lbl">Desk call · ${esc(x.meta.symbol)}</div><div class="src">${esc(x.provenance.status)} · ${esc(x.provenance.source)} · data to ${dt(x.provenance.as_of)}</div><div class="call ${v.call.split(" ")[0]}">${esc(v.call)}</div><div class="why">${esc(v.why)}</div></div>
+    <div><div class="lbl">Gates · all must pass</div><ul class="gates">${v.gates.map(q => `<li class="${q.ok ? "ok" : "no"}" title="${esc(q.ok ? "passed" : "failed: " + q.note)}"><span class="k">${q.ok ? "✓" : "✗"}</span><span>${esc(q.gate)}</span><span class="n">${esc(q.note)}</span></li>`).join("")}</ul></div>
     <div><div class="lbl">Today's risk</div><div class="kv">
       <div><div class="k">Per trade</div><div class="v num">₹${f(r.per_trade, 0)}</div></div>
       <div><div class="k">Day stop</div><div class="v num">₹${f(r.daily_stop, 0)}</div></div>
-      <div><div class="k">Trades left</div><div class="v num">${Math.max(0, r.max_trades - g.trades_opened_today)} / ${r.max_trades}</div></div>
+      <div><div class="k">Trades left</div><div class="v num">${r.trades_left} / ${r.max_trades}</div></div>
       <div><div class="k">Min reward:risk</div><div class="v num">1 : ${r.min_reward_risk}</div></div></div></div>`;
 }
 
@@ -262,14 +277,41 @@ function watch() {
   $("wth").textContent = `What to watch · ${cur().meta.symbol}`;
   const dots = n => `<span class="dots" title="strength ${n}/5">${[1, 2, 3, 4, 5].map(k => `<i class="${k <= n ? "on" : ""}"></i>`).join("")}</span>`;
   const zone = (z, cls) => `<div class="zone ${cls}"><span class="px num">${f(z.low, 0)}${z.high - z.low >= 1 ? "–" + f(z.high, 0) : ""}${dots(z.strength)}</span>
-    <span class="dist num ${cls === "res" ? "bear" : "bull"}">${z.distance >= 0 ? "+" : ""}${f(z.distance, 0)} pts · ${f(Math.abs(z.distance_atr), 2)} ATR</span>
+    <span class="dist num ${cls === "res" ? "bear" : "bull"}" title="distance to the nearest edge; midpoint ${z.distance >= 0 ? "+" : ""}${f(z.distance, 0)} pts">${z.edge_distance >= 0 ? "+" : ""}${f(z.edge_distance, 0)} pts · ${f(z.abs_edge_distance_atr, 2)} ATR</span>
     <span class="mem">${z.timeframes.map(t => `<span class="tf">${t}</span>`).join("")} ${esc(z.members.join(" · "))}</span></div>`;
   const at = w.at_price.length ? `<p class="sum warn">Price is sitting inside a zone now: ${w.at_price.map(z => esc(z.members.join(", "))).join("; ")}.</p>` : "";
   $("watch").innerHTML = `<ul class="read">${w.headline.map(l => `<li>${esc(l)}</li>`).join("")}</ul>${at}
     <div class="zgrid">
       <div><div class="zh bear">Resistance above</div>${w.above.length ? [...w.above].map(z => zone(z, "res")).join("") : '<p class="empty">No levels within 2.5 ATR above.</p>'}</div>
       <div><div class="zh bull">Support below</div>${w.below.length ? w.below.map(z => zone(z, "sup")).join("") : '<p class="empty">No levels within 2.5 ATR below.</p>'}</div>
-    </div><p class="note">Zones merge daily (D), weekly (W) and monthly (M) levels lying within ${f(w.tolerance_points, 0)} points of each other. More dots = more timeframes and more important levels agreeing. Nearest first.</p>`;
+    </div><p class="note">Zones merge daily (D), weekly (W) and monthly (M) levels lying within ${f(w.tolerance_points, 0)} points of each other. Distance is to the nearest edge (hover for the midpoint). More dots = more timeframes agreeing. Nearest first.</p>`;
+}
+
+function regime() {
+  const R = cur().regime, T = { up: "bull", down: "bear", range: "neutral", mixed: "warn", volatile: "warn", insufficient: "neutral" };
+  const OV = { uptrend: "bull", downtrend: "bear", range: "neutral", conflicted: "warn", high_volatility: "warn", uncertain: "neutral" };
+  $("rgaside").textContent = R.version;
+  const nm = { short_term: "5m / 15m", intraday: "1h", swing: "Daily", higher: "Wk / Mo" };
+  $("regime").innerHTML = `<div><span class="tag ${OV[R.overall]}" style="font-size:13px">${esc(W(R.overall))}</span> <span class="note">${esc(R.agreement)}</span></div>
+    <div class="layers">${Object.entries(R.layers).map(([k, v]) => `<div><div class="k">${nm[k]}</div><span class="tag ${T[v.label] || "neutral"}">${esc(v.label)}</span></div>`).join("")}</div>
+    <ul class="read">${R.explanation.map(e => `<li style="font-weight:400;font-size:12.5px;color:var(--muted)">${esc(e)}</li>`).join("")}</ul>`;
+}
+
+function cands() {
+  const C = cur().candidates || [];
+  if (!C.length) { $("cands").innerHTML = `<p class="empty">No setup's pre-market conditions are met for ${esc(cur().meta.symbol)} today.</p>`; return; }
+  $("cands").innerHTML = `<div class="cands">${C.map(c => `<div class="cand">
+    <div class="hd"><b>${esc(c.strategy_id)} v${esc(c.strategy_version)} · ${c.direction.toUpperCase()}</b><span class="dec ${c.decision}">${c.decision.replace("_", " ")}</span></div>
+    <div style="font-size:12.5px">${esc(c.entry_trigger)}</div>
+    <div class="num" style="font-size:12px;margin-top:4px">entry ${f(c.entry_level)} · stop ${f(c.stop)} · target ${f(c.targets[0])} · R:R ${f(c.reward_risk)} · ${c.position.lots ? c.position.lots + " lot, ₹" + f(c.rupee_risk, 0) : esc(c.position.note)}</div>
+    <div class="src" style="margin-top:3px">${esc(c.provenance.status)} · health ${esc(c.provenance.health)} · regime ${esc(W(c.regime.overall))} · ${esc(W(c.validation_status))}</div>
+    <details><summary class="src" style="cursor:pointer;margin-top:6px">Evidence and reasons (${c.reasons.length} reason${c.reasons.length > 1 ? "s" : ""})</summary>
+    ${c.supporting.length ? `<div class="lb bull">Supporting</div><ul>${c.supporting.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+    ${c.contradicting.length ? `<div class="lb bear">Contradicting</div><ul>${c.contradicting.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+    <div class="lb">Why ${c.decision.replace("_", " ").toLowerCase()}</div><ul>${c.reasons.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+    ${c.news_events.length ? `<div class="lb">News &amp; events</div><ul>${c.news_events.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+    </details><div class="note" style="margin-top:4px">${esc(c.reasons[0])}${c.reasons.length > 1 ? ` (+${c.reasons.length - 1} more)` : ""}</div>
+  </div>`).join("")}</div>`;
 }
 
 function spread(items, gap, lo, hi) {
@@ -316,6 +358,7 @@ function ladder() {
   svg.appendChild(labels); $("ladder").replaceChildren(svg);
   [...labels.querySelectorAll("text")].forEach(t => { const b = t.getBBox(); labels.insertBefore(el("rect", { x: b.x - 3, y: b.y, width: b.width + 6, height: b.height, fill: css("--panel") }), t); });
   const s = c.source_ohlc, w = c.width_classification;
+  $("rawnote").textContent = `Raw TC ${f(L.tc)} · raw BC ${f(L.bc)} → normalised top ${f(L.top)}, bottom ${f(L.bottom)}${L.tc < L.bc ? " (TC below BC: close was in the lower half of the range)" : ""}`;
   $("srcnote").textContent = `Width ${f(L.width)} pts (${f(L.width_pct, 3)}%)${w.percentile != null ? `, ${f(w.percentile, 0)}th percentile` : ""} · ${W(c.relation_to_previous)} vs previous · from ${s.start === s.end ? dt(s.start) : dt(s.start) + "–" + dt(s.end)}: O ${f(s.open)} H ${f(s.high)} L ${f(s.low)} C ${f(s.close)}`;
 }
 
@@ -351,6 +394,7 @@ function chart() {
   $("readout").textContent = "Hover or tap a session. The amber band on the right is today's CPR.";
   const B = cur().behaviour;
   $("insights").innerHTML = B.insights.map(i => `<li><i class="${i.tone}"></i><span>${esc(i.text)}</span><span class="n">n=${i.n}</span></li>`).join("");
+  if (B.distributions && B.distributions.length) $("insights").innerHTML += `<li style="grid-template-columns:minmax(0,1fr)"><div class="scroll"><table><thead><tr><th>Open vs CPR</th><th class="r">n</th><th class="r">Median open→close</th><th class="r">25–75%</th><th class="r">% up</th><th class="r">Next day median</th></tr></thead><tbody>${B.distributions.map(d => `<tr><td>${d.open}</td><td class="r num">${d.n}</td><td class="r num ${d.median >= 0 ? "bull" : "bear"}">${f(d.median)}%</td><td class="r num">${f(d.p25)}% / ${f(d.p75)}%</td><td class="r num">${f(d.pct_up, 0)}%</td><td class="r num">${d.next_day_median == null ? "—" : f(d.next_day_median) + "%"}</td></tr>`).join("")}</tbody></table></div></li>`;
   $("insnote").textContent = B.note + (DATA.brief.demo ? " Computed on DEMO prices." : "");
 }
 
@@ -369,11 +413,12 @@ function risk() {
       <div class="row"><span class="k">Against the guard</span><span class="num ${d.trades_after_guard_said_stop ? "bear" : ""}">${d.trades_after_guard_said_stop}</span></div>
       <div class="row"><span class="k">Overtrading days</span><span class="num ${d.days_over_trade_limit ? "bear" : ""}">${d.days_over_trade_limit}</span></div>`;
   }
+  $("capaside").textContent = `₹${f(DATA.risk.capital, 0)} capital · vriddhi_config.json`;
   $("risk").innerHTML = `${guardRows}
-    <div class="row"><span class="k">Max trades</span><span class="num">3 / day</span></div>
-    <div class="row"><span class="k">After a loss</span><span>30 min cool-off</span></div>
-    <div class="row"><span class="k">Two losses in a row</span><span>done for the day</span></div>
-    <div class="row"><span class="k">Weekly loss stop</span><span class="num">₹${f(DATA.brief.risk.capital * 0.05, 0)}</span></div>
+    <div class="row"><span class="k">Max trades</span><span class="num">${DATA.risk.max_trades} / day</span></div>
+    <div class="row"><span class="k">After a loss</span><span>${DATA.risk.cooldown_min} min cool-off</span></div>
+    <div class="row"><span class="k">${DATA.risk.loss_lockout} losses in a row</span><span>done for the day</span></div>
+    <div class="row"><span class="k">Daily / weekly stop</span><span class="num">₹${f(DATA.risk.daily_stop, 0)} / ₹${f(DATA.risk.weekly_stop, 0)}</span></div>
     <div class="lbl" style="margin-top:12px">Discipline · journal, 30 days</div>${disc}`;
 }
 
@@ -385,27 +430,31 @@ function feeds() {
   const cnt = b => all.filter(a => a.bias === b).length;
   $("newssum").innerHTML = all.length ? `<span class="bull">${cnt("supportive")} supportive</span> · <span class="bear">${cnt("adverse")} adverse</span> · <span class="warn">${cnt("check") + cnt("mixed")} to read</span> · ${cnt("routine")} routine`
     : "";
-  $("newsaside").textContent = (h.never_fetched ? "Feeds not fetched yet." : (h.failing && h.failing.length ? "Failing: " + h.failing.join(", ") + "." : "Sources: RBI, SEBI, BSE official feeds."))
+  $("newsaside").textContent = (h.last_fetch_utc ? "Last fetched " + new Date(h.last_fetch_utc).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) + " IST. " : "") + (h.never_fetched ? "Feeds not fetched yet." : (h.failing && h.failing.length ? "Failing: " + h.failing.join(", ") + "." : "Sources: RBI, SEBI, BSE official feeds."))
     + " Colours come from transparent keyword rules in pravin_news.py, not a forecast.";
   $("news").innerHTML = n.length ? n.map(a => `<li class="b-${a.bias || "routine"}"><span class="bias ${a.bias || "routine"}">${BL[a.bias] || "routine"}</span><a class="t" href="${esc(a.link)}" target="_blank" rel="noopener">${esc(a.title)}</a>
     <span class="m">${esc(a.publisher)} · ${a.published_utc ? new Date(a.published_utc).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) + " IST" : ""} · ${esc(a.impact)} impact · ${esc(a.reasons)}</span></li>`).join("")
     : `<li class="empty">${all.length ? "Nothing in this filter. All recent items are routine." : "No announcements stored. Run <span class='mono'>pravin_news.py fetch</span>."}</li>`;
-  const ev = DATA.brief.events;
-  $("events").innerHTML = ev.length ? ev.map(e => `<li><span class="imp ${e.impact}">${esc(e.impact)}</span><span class="t">${esc(e.event)}</span><span class="m">${dt(e.date)} ${esc(e.time_ist || "")} · ${esc(e.region || "")}</span></li>`).join("")
-    : `<li class="empty">Nothing scheduled in the next 7 days in events.csv. Add RBI, Fed, CPI and results dates there.</li>`;
+  const ev = DATA.brief.events, cal = DATA.brief.calendar;
+  const head = cal.checked ? `<li class="empty bull">Calendar checked (${esc(cal.detail)}).</li>`
+    : `<li class="empty bear">Calendar NOT checked: ${esc(cal.detail)}. Event risk is unknown, so the desk will not trade. Review events.csv and set the "reviewed:" date.</li>`;
+  const unv = cal.unverified_rows ? `<li class="empty">${cal.unverified_rows} unverified row(s) ignored.</li>` : "";
+  $("events").innerHTML = head + unv + (ev.length ? ev.map(e => `<li><span class="imp ${e.impact}">${esc(e.impact)}</span><span class="t">${esc(e.event)}</span><span class="m">${dt(e.date)} ${esc(e.time_ist || "")} IST · ${esc(e.region || "")} · moves the ${dt(e.affects_session)} session · ${esc(e.source || "")}</span></li>`).join("")
+    : (cal.checked ? `<li class="empty">Nothing scheduled in the next 7 days.</li>` : ""));
 }
 
 function options() {
   const o = cur().options;
   if (!o) { $("optaside").textContent = ""; $("opts").innerHTML = `<p class="empty">The strike check runs for NIFTY 50 and NIFTY BANK.</p>`; return; }
   const p = o.plan, ok = o.rows.filter(r => r.eligible).length;
-  $("optaside").textContent = `illustration · IV ${f(p.iv_assumed * 100, 0)}% assumed · lot ${p.lot} · expiry ${dt(p.expiry)}`;
+  $("optaside").textContent = `SYNTHETIC chain · IV ${f(p.iv_assumed * 100, 0)}% assumed`;
   $("opts").innerHTML = `<p class="note" style="margin-top:0">Plan: ${esc(p.rule)}. Entry ${f(p.entry)} · target ${f(p.target)} · stop ${f(p.stop)} · ${p.minutes} min · index reward:risk <b class="${p.underlying_rr >= 2 ? "bull" : "bear"}">1 : ${f(p.underlying_rr)}</b>. B/E pts = index move needed to cover decay, spread and charges. Synthetic chain on demo prices; with live data this reads real bid/ask.</p>
-    <p style="margin:6px 0 8px"><span class="tag ${o.status === "ok" ? "bull" : "bear"}">${o.status === "ok" ? ok + " strike" + (ok > 1 ? "s" : "") + " pass" : "NO TRADE"}</span> ${o.reason ? `<span class="note">${esc(o.reason)}</span>` : ""}</p>
+    <p style="margin:6px 0 8px"><span class="tag ${o.status === "illustration" ? "warn" : o.status === "ok" ? "bull" : "bear"}">${o.status === "illustration" ? "SYNTHETIC · ILLUSTRATION" : o.status === "ok" ? ok + " strike" + (ok > 1 ? "s" : "") + " pass" : "NO TRADE"}</span> ${o.reason ? `<span class="note">${esc(o.reason)}</span>` : ""}</p>
+    <p class="note" style="margin:0 0 6px">Model: ${esc(o.model || "")}. Lot size: ${p.lot ? p.lot + (p.lot_verified ? " (from Kite)" : " (unverified)") : "unverified until Kite instrument master is downloaded"}. Expiry ${dt(p.expiry)} (${esc(p.expiry_rule.replace(/_/g, " "))}).</p>
     ${o.warnings.map(w => `<p class="warn" style="margin:0 0 6px">${esc(w)}</p>`).join("")}
-    <table><thead><tr><th>Strike</th><th class="r">Ask</th><th class="r">IV%</th><th class="r">Δ</th><th class="r">θ/hr</th><th class="r">@Tgt</th><th class="r">@Stop</th><th class="r">R:R</th><th class="r">B/E pts</th><th>Check</th></tr></thead><tbody>
+    <table><thead><tr><th>Strike</th><th class="r">Ask</th><th class="r">IV%</th><th class="r">Δ</th><th class="r">θ/hr</th><th class="r">@Tgt</th><th class="r">@Stop</th><th class="r" title="net of charges, IV down at target and stop">R:R worst</th><th class="r" title="net of charges, IV unchanged">R:R base</th><th class="r">B/E pts</th><th>Check</th></tr></thead><tbody>
     ${o.rows.map(r => `<tr><td class="num">${f(r.strike, 0)}${r.kind}</td><td class="r num">${f(r.ask)}</td><td class="r num">${r.iv ? f(r.iv * 100, 1) : "—"}</td><td class="r num">${f(r.delta)}</td><td class="r num">${f(r.theta_per_hour)}</td>
-      <td class="r num">${f(r.premium_at_target)}</td><td class="r num">${f(r.premium_at_stop)}</td><td class="r num">${f(r.option_rr)}</td><td class="r num">${r.breakeven_underlying == null ? "—" : "+" + f(r.breakeven_underlying - p.entry, 1)}</td>
+      <td class="r num">${f(r.premium_at_target)}</td><td class="r num">${f(r.premium_at_stop)}</td><td class="r num">${f(r.option_rr)}</td><td class="r num">${f(r.rr_net_base)}</td><td class="r num">${r.be_points == null ? "—" : "+" + f(r.be_points, 1)}</td>
       <td>${r.eligible ? `<span class="tag bull">${r.lots} lot · ₹${f(r.rupee_risk, 0)}</span>` : `<span class="note" style="margin:0">${esc(r.reasons[0] || "")}</span>`}</td></tr>`).join("")}</tbody></table>`;
 }
 
@@ -428,7 +477,7 @@ function foot() {
     <div>${esc(DATA.brief.disclaimer)} Built ${esc(DATA.status.built_ist.replace("T", " "))} IST from ${esc(DATA.status.provider)}. Calendar: ${esc(DATA.status.calendar)}. Every number on this screen comes from the Python engine; the page calculates nothing.</div>`;
 }
 
-function render() { topbar(); tape(); if (!cur().verdict) return; instseg(); watch(); verdict(); posture(); ladder(); chart(); risk(); feeds(); options(); mtf(); foot(); }
+function render() { topbar(); tape(); if (!cur().verdict) return; instseg(); watch(); verdict(); regime(); cands(); posture(); ladder(); chart(); risk(); feeds(); options(); mtf(); foot(); }
 $("period").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S.p = b.dataset.p; [...$("period").children].forEach(x => x.setAttribute("aria-pressed", String(x === b))); ladder(); });
 $("nf").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S.nf = b.dataset.f; [...$("nf").children].forEach(x => x.setAttribute("aria-pressed", String(x === b))); feeds(); });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);

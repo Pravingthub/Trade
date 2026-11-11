@@ -13,8 +13,9 @@ SVC = Service(make_provider("fixture"))
 @pytest.fixture
 def brief(tmp_path):
     (tmp_path / "events.csv").write_text(
-        "date,time_ist,region,event,impact,source\n# comment\n2026-11-11,10:00,IN,RBI policy,high,rbi.org.in\n"
-        "2026-11-13,18:00,US,US CPI,high,bls.gov\n2027-01-01,,IN,Too far,low,x\n")
+        "# reviewed: 2026-11-10\ndate,time_ist,region,event,impact,verified,source\n# comment\n"
+        "2026-11-11,10:00,IN,RBI policy,high,yes,rbi.org.in\n"
+        "2026-11-13,18:00,US,US CPI,high,yes,bls.gov\n2027-01-01,,IN,Too far,low,yes,x\n2026-11-12,,IN,Example row,high,no,x\n")
     (tmp_path / "global.csv").write_text("as_of_ist,market,last,change_pct,source\n"
                                          "2026-11-11T02:30,S&P 500,6800.5,0.4,manual\n2026-11-09T02:30,Nikkei,51000,-1.2,manual\n")
     return P.build_brief(SVC, events_path=tmp_path / "events.csv", global_path=tmp_path / "global.csv",
@@ -31,7 +32,8 @@ def test_brief_numbers_come_from_the_engine(brief):
 def test_completeness_flags_missing_and_stale_inputs(brief):
     c = {x["input"]: x for x in brief["completeness"]}
     assert c["market data"]["warning"].startswith("DEMO")
-    assert c["global markets"]["status"] == "stale"          # Nikkei row is 2 days old
+    assert c["global markets"]["status"] == "stale"
+    assert c["event calendar"]["status"].startswith("checked: 2") and "1 unverified" in c["event calendar"]["detail"]          # Nikkei row is 2 days old
     assert c["official announcements"]["status"] == "missing"
     assert c["backtests"]["status"] == "missing"
 
@@ -153,3 +155,33 @@ def test_brief_degrades_gracefully_when_data_is_a_day_old(tmp_path):
                       global_path=tmp_path / "g", news_db=tmp_path / "n.db")
     assert b["instruments"][0]["error"] and b["completeness"][0]["status"] == "incomplete"
     assert "Levels not calculated" in P.to_markdown(b) and "NOT calculated" in P.to_telegram(b)
+
+
+def test_calendar_states(tmp_path):
+    p = tmp_path / "e.csv"
+    assert P.calendar_status(p, date(2026, 11, 11))["status"] == "not_checked"
+    p.write_text("# reviewed:\ndate,time_ist,region,event,impact,verified,source\n2026-11-11,,IN,X (example),high,no,x\n")
+    st = P.calendar_status(p, date(2026, 11, 11))
+    assert st["status"] == "not_checked" and st["unverified_rows"] == 1
+    assert P.load_events(p, date(2026, 11, 11)) == []                     # example rows never count
+    p.write_text("# reviewed: 2026-11-01\ndate,time_ist,region,event,impact,verified,source\n")
+    assert P.calendar_status(p, date(2026, 11, 11))["status"] == "stale"
+    p.write_text("# reviewed: 2026-11-10\ndate,time_ist,region,event,impact,verified,source\n")
+    st = P.calendar_status(p, date(2026, 11, 11))
+    assert st["checked"] and P.load_events(p, date(2026, 11, 11)) == []  # checked, nothing scheduled
+
+
+def test_events_map_to_the_session_they_can_move():
+    from pravin_quant import ExchangeCalendar
+    cal = ExchangeCalendar(holidays=frozenset({date(2026, 11, 24)}))
+    assert P.affected_session(date(2026, 11, 12), "16:00", cal.is_session) == date(2026, 11, 13)   # after the close
+    assert P.affected_session(date(2026, 12, 10), "00:30", cal.is_session) == date(2026, 12, 10)   # before the open
+    assert P.affected_session(date(2026, 11, 23), "19:00", cal.is_session) == date(2026, 11, 25)   # next day is a holiday
+    assert P.affected_session(date(2026, 11, 14), "", cal.is_session) == date(2026, 11, 16)        # Saturday
+
+
+def test_real_calendar_file_is_checked_and_verified():
+    st = P.calendar_status(P.ROOT / "events.csv", date(2026, 11, 11))
+    assert st["checked"] and st["unverified_rows"] == 0
+    ev = P.load_events(P.ROOT / "events.csv", date(2026, 11, 11), 30)
+    assert {e["source"] for e in ev} <= {"rbi.org.in", "federalreserve.gov", "mospi.gov.in", "bls.gov"}
