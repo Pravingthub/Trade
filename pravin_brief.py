@@ -65,6 +65,28 @@ def calendar_status(path: Path, as_of: date, max_review_age_days: int = 7) -> di
             "detail": f"reviewed {reviewed.isoformat()}"}
 
 
+READINGS = [   # (keyword in the event name, how to read the outcome for Indian equities)
+    ("cpi", "Direction depends on the number. Higher inflation than expected → bad for markets ↓ (more rate hikes likely); "
+            "lower → good ↑; in line → usually little reaction."),
+    ("inflation", "Direction depends on the number. Higher than expected → bad ↓; lower → good ↑."),
+    ("gdp", "Direction depends on the number. Faster growth than expected → good ↑; slower → bad ↓."),
+    ("rbi monetary policy", "Rate cut → good ↑ (banks lead); hike → bad ↓; hold → watch the tone: worried about "
+                            "inflation = mildly bad, comfortable = mildly good."),
+    ("fomc minutes", "Minutes that sound worried about inflation → mildly bad ↓ for India (stronger dollar, foreign selling); "
+                     "relaxed → mildly good ↑."),
+    ("fomc", "US rate cut or a softer outlook → good ↑ for India (foreign money flows in); hike or tougher outlook → bad ↓."),
+    ("results", "Better than expected → good ↑ for that stock and its index; worse → bad ↓."),
+]
+
+
+def event_reading(name: str) -> str:
+    n = name.lower()
+    for key, text in READINGS:
+        if key in n:
+            return text
+    return "Direction depends on the outcome versus expectations; wait for the release before taking a side."
+
+
 def affected_session(d: date, time_ist: str, is_session) -> date:
     """The trading session an event can move: events after 15:30 IST (or on a
     non-trading day) affect the next session."""
@@ -91,7 +113,8 @@ def load_events(path: Path, start: date, days: int = 7, is_session=None) -> list
             continue
         aff = affected_session(d, (r.get("time_ist") or "").strip(), is_session)
         if start <= aff < start + timedelta(days=days) or start <= d < start + timedelta(days=days):
-            out.append({**r, "date": d.isoformat(), "affects_session": aff.isoformat(), "today": aff == start})
+            out.append({**r, "date": d.isoformat(), "affects_session": aff.isoformat(), "today": aff == start,
+                        "reading": event_reading(r.get("event", ""))})
     return sorted(out, key=lambda r: (r["date"], r.get("time_ist", "")))
 
 

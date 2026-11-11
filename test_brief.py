@@ -185,3 +185,11 @@ def test_real_calendar_file_is_checked_and_verified():
     assert st["checked"] and st["unverified_rows"] == 0
     ev = P.load_events(P.ROOT / "events.csv", date(2026, 11, 11), 30)
     assert {e["source"] for e in ev} <= {"rbi.org.in", "federalreserve.gov", "mospi.gov.in", "bls.gov"}
+
+
+def test_events_explain_how_to_read_the_outcome():
+    assert "Higher inflation than expected → bad" in P.event_reading("India CPI inflation for October 2026")
+    assert "Rate cut → good" in P.event_reading("RBI monetary policy decision (MPC meets 2-4 Dec)")
+    assert "Minutes" in P.event_reading("FOMC minutes of the 27-28 Oct meeting")
+    assert "US rate cut" in P.event_reading("FOMC rate decision and projections")
+    assert "wait for the release" in P.event_reading("Something else")
