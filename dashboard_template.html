@@ -381,6 +381,16 @@ function todayctx() {
     line("Data", esc(x.provenance.status.replace("_", " ").toLowerCase()) + " · " + esc(x.provenance.health.toLowerCase()), x.provenance.status === "LIVE_VERIFIED" ? "bull" : "warn") +
     line("Global overnight", gt) +
     line("Events", ev, b.event_risk_today ? "bear" : "") +
+    (() => {
+      const n = DATA.news || [], notable = n.filter(a => a.bias && a.bias !== "routine");
+      const rank = { adverse: 0, check: 1, mixed: 1, supportive: 2, neutral: 3 };
+      const top = notable.sort((a, c) => (rank[a.bias] ?? 9) - (rank[c.bias] ?? 9))[0];
+      const cls = top ? (top.bias === "adverse" || top.bias === "check" ? "bear" : top.bias === "supportive" ? "bull" : "") : "";
+      const txt = !n.length ? "not fetched" : notable.length
+        ? `${notable.length} notable · <a href="#market">${esc(top.title.slice(0, 70))}${top.title.length > 70 ? "…" : ""}</a>`
+        : `${n.length} items, all routine · <a href="#market">see all</a>`;
+      return line("News", txt, cls);
+    })() +
     line("Risk left today", `${r.trades_left}/${r.max_trades} trades · ₹${f(r.per_trade, 0)} each`) +
     line("Stop for the day", `₹${f(r.daily_stop, 0)} or ${r.loss_lockout} losses in a row`) +
     (p ? `<ul class="ctx">${p.context.slice(0, 2).map(t => `<li>${esc(t)}</li>`).join("")}</ul>` : "") +
