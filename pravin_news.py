@@ -52,7 +52,8 @@ RULES = [
     (r"circuit|surveillance|ban period|\basm\b|\bgsm\b", 3, "market surveillance", "NIFTY50"),
     (r"penalty|cancels certificate of registration|directions under section 35a|co-operative bank|nbfc", -4,
      "routine enforcement", ""),
-    (r"auction of (state )?government securit|treasury bills|money market operations|sgb|sovereign gold", -3,
+    (r"auction of (state )?government|government of india dated securit|state government securities|treasury bills|"
+     r"money market operations|\bsgb\b|sovereign gold", -3,
      "routine operations", ""),
 ]
 
