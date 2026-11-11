@@ -1,0 +1,43 @@
+# Rebuilds the public desk every weekday morning with real global markets (FRED)
+# and official announcements (RBI/SEBI/BSE). Prices stay DEMO until Zerodha is
+# connected on your own computer; your Zerodha data is never published here.
+#
+# Needs one repository secret: Settings → Secrets and variables → Actions →
+# New repository secret → Name: FRED_API_KEY, Secret: your key.
+name: desk
+on:
+  schedule:
+    - cron: "15 1 * * 1-5"     # 06:45 IST, Monday to Friday
+    - cron: "30 12 * * 1-5"    # 18:00 IST, picks up FRED values and official results published in the afternoon
+    - cron: "0 11 * * 1-5"     # 16:30 IST, shortly after most official releases (CPI is at 16:00)
+  workflow_dispatch:            # "Run workflow" button for a manual refresh
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt
+      - name: Restore saved results
+        run: mkdir -p data && cp -f state/results.json data/results.json 2>/dev/null || true
+      - name: Global markets (FRED)
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: python pravin_global.py || echo "FRED fetch failed; the desk will say so"
+      - name: Official announcements
+        run: python pravin_news.py fetch || echo "News fetch failed; the desk will say so"
+      - name: Official results (CPI etc.), read only when every check passes
+        run: python pravin_results.py || echo "Results check failed; the desk will say so"
+      - name: Build the desk
+        run: python build_dashboard.py index.html
+      - name: Publish
+        run: |
+          git config user.name "vriddhi-desk-bot"
+          mkdir -p state && cp -f data/results.json state/results.json 2>/dev/null || true
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html state/results.json 2>/dev/null || git add index.html
+          git commit -m "Desk refresh $(date -u +%Y-%m-%dT%H:%MZ)" || echo "No changes"
+          git push

@@ -39,3 +39,14 @@ def test_routine_and_old_news_ignored_and_events_become_cautions():
     r = MR.read(None, news, ev, NOW)
     assert r["score"] == 0 and r["lean"] == "neutral"
     assert any("not fetched" in c for c in r["cautions"]) and any("India CPI affects" in c for c in r["cautions"])
+
+
+def test_read_result_moves_the_lean_and_unread_release_is_flagged():
+    ev_read = [{"impact": "high", "event": "India CPI (after the close)", "affects_session": "2026-11-13", "state": "read",
+                "outcome": {"bias": "adverse", "text": "CPI 5.91% vs 5.54% last month: hotter → bad for markets ↓"}}]
+    r = MR.read(None, [], ev_read, NOW)
+    assert r["score"] == -3 and r["lean"] == "bearish" and r["drivers"][0]["source"] == "result"
+    ev_unread = [{"impact": "high", "event": "India CPI (after the close)", "affects_session": "2026-11-13",
+                  "state": "released_unread", "state_reason": "release not found in the configured sources yet"}]
+    r2 = MR.read(None, [], ev_unread, NOW)
+    assert r2["score"] == 0 and any("does NOT include it" in c for c in r2["cautions"])

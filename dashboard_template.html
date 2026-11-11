@@ -619,8 +619,10 @@ function feeds() {
   const head = cal.checked ? `<li class="empty bull">Calendar checked (${esc(cal.detail)}).</li>`
     : `<li class="empty bear">Calendar NOT checked: ${esc(cal.detail)}. Event risk is unknown, so the desk will not trade. Review events.csv and set the "reviewed:" date.</li>`;
   const unv = cal.unverified_rows ? `<li class="empty">${cal.unverified_rows} unverified row(s) ignored.</li>` : "";
-  const IMP = { high: "Moves markets", medium: "May move markets", low: "Minor" };
-  $("events").innerHTML = head + unv + (ev.length ? ev.map(e => `<li><span class="imp ${e.impact}">${IMP[e.impact] || esc(e.impact)}</span><span class="t">${esc(e.event)}</span><span class="m">${dt(e.date)} ${esc(e.time_ist || "")} IST · ${esc(e.region || "")} · moves the ${dt(e.affects_session)} session · ${esc(e.source || "")}</span></li>`).join("")
+  const IMP = { high: "Big event", medium: "Medium event", low: "Minor" };
+  $("events").innerHTML = head + unv + (ev.length ? ev.map(e => `<li><span class="imp ${e.impact}">${IMP[e.impact] || esc(e.impact)}</span><span class="t">${esc(e.event)}</span>${e.state === "read" && e.outcome ? `<span class="m ${e.outcome.bias === "adverse" ? "bear" : e.outcome.bias === "supportive" ? "bull" : ""}" style="font-size:12.5px;font-weight:600;margin-top:3px">OUT: ${esc(e.outcome.text)}</span><span class="m">Read from the official release; checks: ${esc((e.result_checks || []).join("; "))}</span>`
+      : e.state === "released_unread" ? `<span class="m bear" style="font-size:12.5px;font-weight:600;margin-top:3px">Released, not read yet: ${esc(e.state_reason || "")}. Check the official release yourself; the lean does not include it.</span>`
+      : `<span class="m" style="color:var(--ink);font-size:12px;margin-top:3px">${esc(e.reading || "")}</span>`}<span class="m">${dt(e.date)} ${esc(e.time_ist || "")} IST · ${esc(e.region || "")} · affects the ${dt(e.affects_session)} session · ${esc(e.source || "")}</span></li>`).join("")
     : (cal.checked ? `<li class="empty">Nothing scheduled in the next 7 days.</li>` : ""));
 }
 

@@ -66,5 +66,9 @@
     "min_median_turnover_cr": 50,
     "top_n": 5,
     "history_days": 300
-  }
+  },
+  "results_sources": [
+    "https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3"
+  ],
+  "_results_note": "Official feeds checked for released results (PIB English press releases). Correct the address here if PIB changes it."
 }

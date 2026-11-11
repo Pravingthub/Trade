@@ -54,9 +54,18 @@ def read(global_summary: dict | None, news: list[dict], events: list[dict], now:
             notable += 1
             drivers.append({"source": "news", "points": pts, "text": f"{a['publisher']}: {a['title'][:90]}"})
     for e in events:
-        if e.get("impact") == "high":
-            cautions.append(f"{e['event'].split(' (')[0]} affects the {e['affects_session']} session"
-                            + (" (today)." if e.get("today") else "."))
+        name = e["event"].split(" (")[0]
+        st = e.get("state")
+        if st == "read" and e.get("outcome"):
+            w = NEWS_POINTS.get(e.get("impact"), 0)
+            pts = w if e["outcome"]["bias"] == "supportive" else -w if e["outcome"]["bias"] == "adverse" else 0
+            score += pts
+            drivers.append({"source": "result", "points": pts, "text": e["outcome"]["text"]})
+        elif st == "released_unread" and e.get("impact") == "high":
+            cautions.append(f"{name} is out but has not been read safely ({e.get('state_reason', 'not checked')}). "
+                            "The lean does NOT include it: check the official release before trading.")
+        elif e.get("impact") == "high":
+            cautions.append(f"{name} affects the {e['affects_session']} session" + (" (today)." if e.get("today") else "."))
     lean = "bullish" if score >= 3 else "bearish" if score <= -3 else "neutral"
     drivers.sort(key=lambda d: -abs(d["points"]))
     if lean == "neutral":

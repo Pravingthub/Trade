@@ -221,6 +221,17 @@ def build(out: Path, provider: str = "fixture", news_db: Path | None = None, jou
         row = N.connect(news_db).execute("SELECT MAX(at_utc) FROM fetches WHERE ok=1").fetchone()
         last_fetch = row[0] if row else None
     import pravin_marketread as MRD
+    import pravin_results as RS
+    results = RS.load()
+    for e in brief["events"]:
+        rec = results.get(RS.event_key(e))
+        released = now >= datetime.fromisoformat(f"{e['date']}T{(e.get('time_ist') or '00:00')}:00+05:30")
+        if rec and rec["status"] == "READ":
+            e.update(state="read", outcome=rec.get("judgement"), result_value=rec.get("value"), result_checks=rec.get("checks"))
+        elif released:
+            e.update(state="released_unread", state_reason=(rec or {}).get("reason", "not checked yet"))
+        else:
+            e["state"] = "upcoming"
     market_read = MRD.read(__import__("pravin_global").load(), news, brief["events"], now)
     for e in instruments:
         if e.get("plan"):
