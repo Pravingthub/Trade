@@ -2,8 +2,9 @@
 
 Jobs (IST, Monday to Friday, skipped on NSE holidays from nse_holidays.csv):
     07:45  news     fetch official announcements (again every 30 min during market hours)
+    07:50  global   overnight global markets from FRED
     08:15  login    Telegram reminder to log in to Kite (Zerodha requires a manual login daily)
-    08:50  brief    morning brief (+ Telegram)
+    08:50  brief    morning brief and TODAY'S PLAN (+ Telegram)
     09:10  live     live watcher until 15:30 (paper-trades alerts into the journal)
     16:00  review   journal review of the day (+ Telegram)
 
@@ -34,6 +35,7 @@ LABEL = "com.vriddhi.{}"
 
 JOBS = {
     "news": [(7, 45)] + [(h, m) for h in range(9, 16) for m in (0, 30) if (h, m) <= (15, 30)],
+    "global": [(7, 50)],
     "login": [(8, 15)],
     "brief": [(8, 50)],
     "live": [(9, 10)],
@@ -106,12 +108,15 @@ def run(job: str, provider: str, today: date | None = None, runner=None, notify=
         return "already logged in"
     if job == "news":
         return f"exit {runner(['pravin_news.py', 'fetch'])}"
+    if job == "global":
+        return f"exit {runner(['pravin_global.py'])}"
     if job == "brief":
         if needs_kite and has_token:
             runner(["pravin_kite.py", "fetch", "--years", "0.05"])
         elif needs_kite:
             notify("Vriddhi: not logged in to Kite, so the brief uses yesterday's stored data and may be incomplete.")
-        return f"exit {runner(['pravin_brief.py', '--provider', provider, '--telegram'])}"
+        runner(["pravin_brief.py", "--provider", provider, "--telegram"])
+        return f"exit {runner(['build_dashboard.py', '--provider', provider, '--telegram-plan'])}"
     if job == "live":
         if needs_kite and not has_token:
             notify("Vriddhi: live alerts NOT started because you are not logged in to Kite today.")

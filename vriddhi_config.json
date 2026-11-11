@@ -1,0 +1,63 @@
+{
+  "_note": "Your settings. Every Vriddhi tool reads this file. Capital must be between 50,000 and 1,00,000 unless you change allowed_capital.",
+  "risk": {
+    "capital": 100000,
+    "allowed_capital": [
+      50000,
+      100000
+    ],
+    "risk_per_trade_pct": 1.0,
+    "daily_loss_stop_pct": 2.0,
+    "weekly_loss_stop_pct": 5.0,
+    "max_trades_per_day": 3,
+    "min_reward_risk": 2.0,
+    "cooldown_after_loss_min": 30,
+    "consecutive_loss_lockout": 2,
+    "slippage_points": {
+      "NIFTY50": 1.0,
+      "BANKNIFTY": 2.0
+    }
+  },
+  "contracts": {
+    "_note": "UNVERIFIED placeholders until the Kite instrument master is downloaded; `pravin_kite.py fetch` overwrites lot sizes with the exchange's current values.",
+    "NIFTY50": {
+      "lot_size": null,
+      "strike_step": 50,
+      "expiry_rule": "weekly_tuesday"
+    },
+    "BANKNIFTY": {
+      "lot_size": null,
+      "strike_step": 100,
+      "expiry_rule": "monthly_last_tuesday"
+    }
+  },
+  "options_model": {
+    "risk_free_rate": 0.065,
+    "iv_shock_points": 2.0
+  },
+  "heavyweights": {
+    "_note": "Companies whose results can move the index. Edit freely; names are matched in announcement titles.",
+    "BANKNIFTY": [
+      "HDFC Bank",
+      "ICICI Bank",
+      "State Bank of India",
+      "Kotak Mahindra Bank",
+      "Axis Bank"
+    ],
+    "NIFTY50": [
+      "Reliance Industries",
+      "HDFC Bank",
+      "ICICI Bank",
+      "Infosys",
+      "Tata Consultancy Services",
+      "Bharti Airtel",
+      "Larsen & Toubro",
+      "ITC",
+      "State Bank of India"
+    ]
+  },
+  "stance": {
+    "max_changes_per_day": 4,
+    "min_minutes_between_changes": 30
+  }
+}

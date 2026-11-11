@@ -83,11 +83,18 @@ def opened_count(con, day: date, mode: str) -> int:
 
 def guard_for(con, now: datetime, policy: RiskPolicy, mode: str) -> DailyGuard:
     """The risk guard, rebuilt from the journal, so limits survive restarts."""
-    return DailyGuard(policy, closed_today(con, now.date(), mode), opened_count(con, now.date(), mode))
+    closed = [t for t in closed_today(con, now.date(), mode) if t.closed_at <= now]   # never count the future
+    return DailyGuard(policy, closed, opened_count(con, now.date(), mode))
+
+
+class GuardBlocked(Exception):
+    """The risk guard refused a new paper trade."""
 
 
 def open_trade(con, *, mode, instrument, kind, side, entry, stop, target, qty, setup="discretionary",
                validated=False, from_alert=False, planned_entry=None, policy: RiskPolicy, now=None, notes="") -> int:
+    """Paper trades are BLOCKED when the risk guard says stop. Live trades have
+    already happened at the broker, so they are recorded and flagged instead."""
     now = now or datetime.now(IST)
     d = 1 if side == "long" else -1
     if (entry - stop) * d <= 0:
@@ -95,6 +102,8 @@ def open_trade(con, *, mode, instrument, kind, side, entry, stop, target, qty, s
     if (target - entry) * d <= 0:
         raise ValueError("target must be beyond entry in the trade's direction")
     status = guard_for(con, now, policy, mode).status(now)
+    if mode == "paper" and not status["can_recommend"]:
+        raise GuardBlocked("; ".join(status["reasons"]))
     cur = con.execute(
         "INSERT INTO trades (mode, instrument, kind, side, setup, setup_validated, from_alert, planned_entry, stop, target, qty,"
         " planned_risk, guard_ok, guard_reasons, opened_at, entry, notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -224,9 +233,13 @@ class PaperBook:
             if (entry - q["stop"]) * d <= 0:
                 msgs.append(f"Paper {q['setup']} skipped: opened through the stop")
                 continue
-            tid = open_trade(self.con, mode="paper", instrument=q["instrument"], kind=q["kind"], side=q["side"],
-                             entry=entry, stop=q["stop"], target=q["target"], qty=q["qty"], setup=q["setup"],
-                             validated=q["validated"], from_alert=True, policy=self.policy, now=ts)
+            try:
+                tid = open_trade(self.con, mode="paper", instrument=q["instrument"], kind=q["kind"], side=q["side"],
+                                 entry=entry, stop=q["stop"], target=q["target"], qty=q["qty"], setup=q["setup"],
+                                 validated=q["validated"], from_alert=True, policy=self.policy, now=ts)
+            except GuardBlocked as e:
+                msgs.append(f"Paper {q['setup']} blocked by the risk guard: {e}")
+                continue
             self.open.append(PaperPosition(tid, d, q["stop"], q["target"]))
             msgs.append(f"Paper #{tid} opened {q['side']} at {entry:,.2f}")
         self.pending.clear()
@@ -250,7 +263,7 @@ class PaperBook:
 # ====================================================================== CLI
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--capital", type=float, default=100_000)
+    ap.add_argument("--capital", type=float, help="defaults to vriddhi_config.json")
     sub = ap.add_subparsers(dest="cmd", required=True)
     o = sub.add_parser("open")
     for a in ("--instrument", "--kind", "--side"):
@@ -272,14 +285,18 @@ def main(argv=None):
     r.add_argument("--mode", choices=["paper", "live"])
     a = ap.parse_args(argv)
     con = connect()
-    pol = RiskPolicy(capital=a.capital)
+    import pravin_config
+    pol = pravin_config.risk_policy(capital=a.capital)
     if a.cmd == "open":
         before = guard_for(con, datetime.now(IST), pol, a.mode).status(datetime.now(IST))
         if not before["can_recommend"]:
             print("WARNING - risk guard says no new trades: " + "; ".join(before["reasons"]))
             print("The trade is logged anyway, and the review will show it as taken against the guard.")
-        tid = open_trade(con, mode=a.mode, instrument=a.instrument, kind=a.kind, side=a.side, entry=a.entry, stop=a.stop,
-                         target=a.target, qty=a.qty, setup=a.setup, validated=a.validated, policy=pol, notes=a.notes)
+        try:
+            tid = open_trade(con, mode=a.mode, instrument=a.instrument, kind=a.kind, side=a.side, entry=a.entry, stop=a.stop,
+                             target=a.target, qty=a.qty, setup=a.setup, validated=a.validated, policy=pol, notes=a.notes)
+        except GuardBlocked as e:
+            raise SystemExit(f"Paper trade refused by the risk guard: {e}") from None
         risk = abs(a.entry - a.stop) * a.qty
         print(f"Opened #{tid}. Planned risk ₹{risk:,.0f} ({risk / pol.risk_budget:.1f}x your ₹{pol.risk_budget:,.0f} budget). "
               "Place the stop order in Kite now.")

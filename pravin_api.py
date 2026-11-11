@@ -92,6 +92,26 @@ class Provenance:
         return d
 
 
+PROVENANCE = {"live": "LIVE_VERIFIED", "delayed": "DELAYED", "historical": "HISTORICAL", "simulated": "DEMO",
+              "manual": "HISTORICAL", "unavailable": "UNAVAILABLE"}
+
+
+def provenance_status(mode: "DataMode | str", stale: bool = False) -> str:
+    """Desk-level provenance label. A live feed that is stale is no longer LIVE_VERIFIED."""
+    v = PROVENANCE[getattr(mode, "value", mode)]
+    return "DELAYED" if v == "LIVE_VERIFIED" and stale else v
+
+
+def market_health(issues: list, missing_sessions: list, stale: bool, is_live: bool) -> dict:
+    """HEALTHY / DEGRADED / BLOCKED with reasons. Any error-level candle issue or a
+    stale live feed blocks recommendations; missing sessions degrade them."""
+    errs = [i["detail"] for i in issues if i.get("severity") == "error"]
+    reasons = errs + ([f"{len(missing_sessions)} missing sessions"] if missing_sessions else []) + \
+        (["live feed stale"] if is_live and stale else [])
+    status = "BLOCKED" if errs or (is_live and stale) else "DEGRADED" if missing_sessions else "HEALTHY"
+    return {"status": status, "reasons": reasons}
+
+
 class MarketDataProvider(Protocol):
     name: str
     data_mode: DataMode

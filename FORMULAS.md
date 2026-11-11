@@ -54,3 +54,19 @@ Convention: EMA and Wilder smoothing are seeded with a simple average of the fir
 - Minimum reward/risk 1:2.
 - Max 3 new trades per day; 30-minute cooldown after a loss; two consecutive losses end the day; 2% daily and 5% weekly loss stops.
 - Stop discipline report: count and rupee cost of exits beyond the planned stop.
+
+## Data provenance
+LIVE_VERIFIED (live feed, fresh) · DELAYED (live feed stale, or delayed source) · HISTORICAL (stored completed candles) · DEMO (simulated) · UNAVAILABLE.
+Only LIVE_VERIFIED with HEALTHY market-data health can produce a non-NO_TRADE candidate.
+Health: BLOCKED if any candle fails OHLC validation or a live feed is stale; DEGRADED if sessions are missing; otherwise HEALTHY.
+
+## Market regime (regime-stack-1)
+Layer rule for 5m, 15m, 1h and weekly bars (needs 50 completed bars): up = close > EMA20 > EMA50 and EMA20 higher than 5 bars ago; down = mirror; otherwise range.
+Short-term = 5m combined with 15m (same → that label; different → mixed). Swing = regime-v1 on daily bars (ADX ≥ 25 with DMI and close vs EMA50 → trend; ADX ≤ 18 → range/compressed; ATR in top decile → high volatility). Higher = weekly layer combined with position vs weekly and monthly CPR.
+Overall: swing is the anchor; same direction as higher → uptrend/downtrend; opposite → conflicted; higher mixed → trend without higher-timeframe backing; volatile → high_volatility. Lower layers against the trend are reported as pullbacks.
+
+## Options
+Black-Scholes (European, continuous rate, no dividend for indices). IV from the bid/ask mid by bisection (bounds checked). Greeks: delta, gamma, theta per calendar day (per hour = per day ÷ 6.25 trading hours), vega per volatility point.
+Scenario: after the expected holding time, the option is repriced at the target and at the stop with IV unchanged and IV ± shock (default 2 points); exit price = model value × (1 − half the spread).
+Reward/risk (worst) = (premium at target with the lower of IV unchanged/IV down − ask − charges per unit) ÷ (ask − premium at stop with IV down + charges per unit). Break-even = index level where the option is worth ask + charges after the holding time.
+Validation refuses: past or non-trading expiry, empty chain, spot outside the chain, strikes off the step, quotes older than 60 seconds. Unverified lot size blocks sizing. Synthetic chains are illustration only.

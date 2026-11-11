@@ -14,22 +14,44 @@ def test_demo_data_can_never_produce_a_trade_call(tmp_path):
     _, d = build(tmp_path)
     for i in d["instruments"]:
         assert i["verdict"]["call"] == "NO TRADE"
-        assert i["verdict"]["gates"][0] == {"gate": "Live or verified market data", "ok": False, "note": "demo prices"}
+        assert i["verdict"]["gates"][0]["gate"] == "Data live and verified" and not i["verdict"]["gates"][0]["ok"]
+        assert i["provenance"]["status"] == "DEMO"
+        assert all(c["decision"] == "NO_TRADE" for c in i["candidates"])
+        if i["options"]:
+            assert i["options"]["status"] == "illustration" and all(r["lots"] == 0 for r in i["options"]["rows"])
+
+
+PROV = {"status": "LIVE_VERIFIED", "health": "HEALTHY"}
+GUARD = {"can_recommend": True, "reasons": []}
+BRIEF = {"event_risk_today": False, "announcement_risk": False, "calendar": {"checked": True, "status": "checked"}}
 
 
 def test_verdict_logic():
-    inst = {"setups": [{"backtest_status": "candidate_for_paper_trading", "eligible": True}]}
-    ok = {"demo": False, "event_risk_today": False, "announcement_risk": False}
-    assert D.verdict(inst, ok)["call"] == "WATCH"
-    assert D.verdict(inst, {**ok, "event_risk_today": True})["call"] == "STAND ASIDE"
-    assert D.verdict({"setups": [{"backtest_status": "rejected", "eligible": False}]}, ok)["call"] == "NO TRADE"
+    good = {"setups": [{"backtest_status": "candidate_for_paper_trading", "eligible": True}]}
+    assert D.verdict(good, BRIEF, PROV, GUARD)["call"] == "WATCH"
+    assert D.verdict({"setups": [{"backtest_status": "rejected", "eligible": False}]}, BRIEF, PROV, GUARD)["call"] == "STAND ASIDE"
+    for bad_brief, bad_prov, bad_guard in [
+        ({**BRIEF, "event_risk_today": True}, PROV, GUARD),
+        ({**BRIEF, "calendar": {"checked": False, "status": "not_checked"}}, PROV, GUARD),
+        (BRIEF, {**PROV, "status": "DELAYED"}, GUARD),
+        (BRIEF, {**PROV, "health": "DEGRADED"}, GUARD),
+        (BRIEF, PROV, {"can_recommend": False, "reasons": ["daily loss stop hit"]}),
+    ]:
+        assert D.verdict(good, bad_brief, bad_prov, bad_guard)["call"] == "NO TRADE"
+
+
+def test_no_calculation_left_in_the_page(tmp_path):
+    html, d = build(tmp_path)
+    for banned in ("capital * 0.05", "max_trades - g.trades_opened_today", "breakeven_underlying - p.entry"):
+        assert banned not in html
+    assert d["risk"]["trades_left"] == 3 and d["risk"]["weekly_stop"] == 5000
 
 
 def test_option_check_explains_a_bad_plan(tmp_path):
     _, d = build(tmp_path)
     o = d["instruments"][0]["options"]
     if o and o["plan"]["underlying_rr"] < 2:
-        assert o["status"] == "no_trade" and "no strike can fix" in o["reason"]
+        assert o["status"] == "illustration" and "no strike can fix" in o["reason"]
 
 
 def test_page_loads_nothing_but_fonts_and_has_empty_states(tmp_path):

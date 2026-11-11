@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import json
 import re
 import sqlite3
 import urllib.request
@@ -116,9 +117,28 @@ def parse_feed(xml_bytes: bytes, source: str, publisher: str) -> list[Item]:
     return [i for i in out if i.title]
 
 
+def heavyweights() -> dict:
+    try:
+        return json.loads((ROOT / "vriddhi_config.json").read_text()).get("heavyweights", {})
+    except (OSError, ValueError):
+        return {}
+
+
+RESULTS = re.compile(r"financial results|quarterly results|results for the quarter|audited results|unaudited|outcome of board meeting")
+
+
 def score(title: str, default_affects: str) -> dict:
     t = title.lower()
     s, reasons, affects, biases = 0, [], set(filter(None, default_affects.split("|"))), set()
+    if RESULTS.search(t):
+        for idx, names in heavyweights().items():
+            if idx.startswith("_"):
+                continue
+            hit = [n for n in names if n.lower() in t]
+            if hit:
+                s += 6
+                reasons.append(f"heavyweight results: {hit[0]}")
+                affects.add(idx)
     for pat, pts, why, aff, bias in RULES:
         if re.search(pat, t):
             s += pts

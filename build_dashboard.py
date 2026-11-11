@@ -17,9 +17,7 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
 from pravin_api import Service, make_provider  # noqa: E402
-from pravin_quant import IST, RiskPolicy  # noqa: E402
-
-CAPITAL = 100_000
+from pravin_quant import IST  # noqa: E402
 
 
 def tone_of(kind: str, value) -> str:
@@ -60,31 +58,39 @@ def posture(inst: dict, ind: dict, mtf: dict) -> list[dict]:
     return [{"label": a, "value": b, "tone": c} for a, b, c in rows]
 
 
-def verdict(inst: dict, brief: dict) -> dict:
-    """The desk's call for the day. Deliberately strict: any failed gate means NO TRADE."""
+def verdict(inst: dict, brief: dict, prov: dict, guard: dict) -> dict:
+    """The desk's call. Deliberately strict: any failed gate means NO TRADE."""
+    cal = brief["calendar"]
     gates = [
-        ("Live or verified market data", not brief["demo"], "demo prices" if brief["demo"] else "Zerodha data"),
+        ("Data live and verified", prov["status"] == "LIVE_VERIFIED", prov["status"].lower().replace("_", " ")),
+        ("Market-data health", prov["health"] == "HEALTHY", prov["health"].lower()),
+        ("Event calendar checked", cal["checked"], cal["status"].replace("_", " ")),
+        ("No high-impact event today", cal["checked"] and not brief["event_risk_today"],
+         "unknown" if not cal["checked"] else "event today"),
+        ("No high-impact official announcement", not brief.get("announcement_risk"), "check announcements"),
+        ("Risk guard clear", guard["can_recommend"], "; ".join(guard["reasons"])),
         ("A setup has passed backtesting", any(s["backtest_status"] == "candidate_for_paper_trading" for s in inst["setups"]),
          "none validated yet"),
         ("Validated setup qualifies today", any(s["eligible"] for s in inst["setups"]), "none eligible"),
-        ("No high-impact event today", not brief["event_risk_today"], "event today"),
-        ("No high-impact official announcement", not brief.get("announcement_risk"), "check announcements"),
     ]
     g = [{"gate": a, "ok": bool(b), "note": "" if b else c} for a, b, c in gates]
     if all(x["ok"] for x in g):
         call, why = "WATCH", "Validated setup in play. Wait for the confirming 5-minute close; size from the risk desk."
-    elif g[0]["ok"] and g[1]["ok"]:
-        call, why = "STAND ASIDE", "No validated setup qualifies today, or event risk is elevated."
+    elif all(x["ok"] for x in g[:6]):
+        call, why = "STAND ASIDE", "Data and risk are fine, but no validated setup qualifies today."
     else:
-        call, why = "NO TRADE", "Not enough evidence: " + ", ".join(x["note"] for x in g if not x["ok"]) + "."
+        call, why = "NO TRADE", "Not enough evidence: " + ", ".join(f"{x['gate'].lower()} ({x['note']})" for x in g if not x["ok"]) + "."
     return {"call": call, "why": why, "gates": g}
 
 
-def option_check(service, iid: str, inst: dict, as_of: date) -> dict | None:
-    """Illustrative strike check for a long above the CPR top. Uses a synthetic
-    chain priced at a fixed volatility because no live option prices exist yet."""
+def option_check(service, iid: str, inst: dict, as_of: date, cfg: dict, policy, store_meta: dict | None = None) -> dict | None:
+    """Illustrative strike check for a long above the CPR top. The chain is
+    SYNTHETIC (priced by the model at an assumed IV) until a live chain exists,
+    so the result can only ever be an illustration."""
+    import pravin_config as PC
     import pravin_options as O
-    if iid not in ("NIFTY50", "BANKNIFTY") or inst.get("error"):
+    con = PC.contract(iid, cfg, store_meta)
+    if con is None or inst.get("error"):
         return None
     spot = inst["last_close"]
     c = inst["cpr"]["day"]
@@ -93,39 +99,56 @@ def option_check(service, iid: str, inst: dict, as_of: date) -> dict | None:
     stop = min(c["bottom"], entry - 0.25 * inst["atr14"])       # never tighter than a quarter of the daily ATR
     if target <= entry or stop >= entry:
         return None
-    step = 50 if iid == "NIFTY50" else 100
-    lot = 65 if iid == "NIFTY50" else 30
-    days_ahead = (1 - as_of.weekday()) % 7 or 7               # next Tuesday expiry
-    expiry = as_of + timedelta(days=days_ahead)
+    expiry = PC.next_expiry(con.expiry_rule, as_of, service.cal.is_session)
     now = datetime.combine(as_of, datetime.min.time(), IST).replace(hour=9, minute=20)
     T = O.year_fraction(now, expiry)
+    iv, r = 0.13, cfg["options_model"]["risk_free_rate"]
     chain = []
     for k in range(-6, 7):
-        K = round(entry / step) * step + k * step
-        mid = O.bs_price(entry, K, T, 0.065, 0.13, 0, "CE")
+        K = round(entry / con.strike_step) * con.strike_step + k * con.strike_step
+        mid = O.bs_price(entry, K, T, r, iv, 0, "CE")
         half = max(mid * 0.006, 0.05)
         chain.append({"strike": K, "type": "CE", "bid": round(mid - half, 2), "ask": round(mid + half, 2), "oi": 1_000_000})
     res = O.evaluate_chain(chain, spot=entry, direction=1, target=target, stop=stop, minutes=90, now=now, expiry=expiry,
-                           lot_size=lot, policy=RiskPolicy(capital=CAPITAL), chain_time=now)
+                           lot_size=con.lot_size, policy=policy, chain_time=now, r=r, source="synthetic",
+                           iv_shock=cfg["options_model"]["iv_shock_points"] / 100, strike_step=con.strike_step,
+                           is_session=service.cal.is_session)
     plan_rr = (target - entry) / (entry - stop)
-    return {"plan": {"entry": entry, "target": target, "stop": stop, "underlying_rr": plan_rr, "rule": "long above CPR top, target R1, stop at the CPR "
-                     "bottom or 0.25×ATR below entry, whichever is wider", "expiry": expiry.isoformat(), "lot": lot,
-                     "iv_assumed": 0.13, "minutes": 90},
-            "status": res["status"],
-            "reason": (f"the plan itself offers only 1 : {plan_rr:.2f} on the index, below the 1 : 2 minimum; "
-                       "no strike can fix that") if plan_rr < 2 and res["status"] != "ok" else res.get("reason"),
-            "warnings": res.get("warnings", []),
-            "rows": res["candidates"][:9]}
+    for row in res["candidates"]:
+        row["be_points"] = None if row["breakeven_underlying"] is None else row["breakeven_underlying"] - entry
+    return {"plan": {"entry": entry, "target": target, "stop": stop, "underlying_rr": plan_rr, "expiry": expiry.isoformat(),
+                     "expiry_rule": con.expiry_rule, "lot": con.lot_size, "lot_verified": con.lot_verified,
+                     "iv_assumed": iv, "minutes": 90,
+                     "rule": "long above CPR top, target R1, stop at the CPR bottom or 0.25×ATR below entry, whichever is wider"},
+            "source": "SYNTHETIC", "model": res.get("model"), "status": res["status"],
+            "reason": (f"the plan itself offers only 1 : {plan_rr:.2f} on the index, below the 1 : {policy.min_reward_risk:g} "
+                       "minimum; no strike can fix that") if plan_rr < policy.min_reward_risk else res.get("reason"),
+            "warnings": res.get("warnings", []), "rows": res["candidates"][:9]}
 
 
-def build(out: Path, provider: str = "fixture", news_db: Path | None = None, journal_db: Path | None = None):
+def build(out: Path, provider: str = "fixture", news_db: Path | None = None, journal_db: Path | None = None,
+          events_path: Path | None = None):
+    import pravin_backtest as BT
     import pravin_brief as P
+    import pravin_candidates as CD
+    import pravin_config as PC
     import pravin_journal as J
     import pravin_news as N
+    import pravin_regime as RG
+    from pravin_api import market_health, provenance_status
+    cfg = PC.load()
+    policy = PC.risk_policy(cfg)
     s = Service(make_provider(provider))
     ids = [i.id for i in s.p.get_instruments()]
     news_db = news_db or ROOT / "news.db"
-    brief = P.build_brief(s, ids=ids, capital=CAPITAL, news_db=news_db)
+    brief = P.build_brief(s, ids=ids, capital=policy.capital, news_db=news_db,
+                          **({"events_path": events_path} if events_path else {}))
+    health = {r["instrument"]: r for r in s.data_health()["instruments"]}
+    jpath = journal_db or ROOT / "journal.db"
+    jcon = J.connect(jpath) if jpath.exists() else J.connect(":memory:")
+    now = datetime.now(IST)
+    guard = J.guard_for(jcon, now, policy, "paper").status(now)
+    store_meta = getattr(getattr(s.p, "store", None), "meta", lambda: {})()
     as_of = date.fromisoformat(brief["for_session"])
     by_id = {i["id"]: i for i in brief["instruments"]}
     instruments = []
@@ -143,15 +166,35 @@ def build(out: Path, provider: str = "fixture", news_db: Path | None = None, jou
             pivs = {p: s.pivots(i, p, as_of) for p in ("day", "week", "month")}
             z = Wt.zones(Wt.collect_levels(cprs, pivs), b["last_close"], b["atr14"])
             behaviour = Wt.cpr_behaviour(s.cpr_history(i, 250, as_of)["sessions"])
+            hrow = health[i]
+            stale = hrow["freshness"]["stale"]
+            mh = market_health(hrow["issues"], hrow["missing_sessions"], stale, s.p.data_mode.value == "live")
+            prov = {"status": provenance_status(s.p.data_mode, stale), "health": mh["status"], "health_reasons": mh["reasons"],
+                    "source": s.p.name, "as_of": cprs["day"]["source_ohlc"]["end"], "built_ist": now.isoformat(timespec="minutes")}
+            regime_stack = RG.stack(s, i, as_of)
+            con_ = PC.contract(i, cfg, store_meta)
+            facts = {"width_label": b["cpr"]["day"]["width_label"], "width_percentile": b["cpr"]["day"]["width_percentile"] or 0,
+                     "close_vs_cpr": b["cpr"]["day"]["close_position"], "atr14": b["atr14"]}
+            cands = CD.premarket(instrument=i, strategies=BT.STRATEGIES, setups_status={x["id"]: x for x in b["setups"]},
+                                 cpr_levels=cprs["day"]["levels"], regime=regime_stack, provenance=prov, policy=policy,
+                                 lot_size=con_.lot_size if con_ else None, guard=guard, calendar=brief["calendar"],
+                                 events=brief["events"], announcements=brief.get("announcements", []), facts=facts)
             entry.update({
+                "provenance": prov, "regime": regime_stack, "candidates": [c.to_dict() for c in cands],
+                "cpr_levels_day": cprs["day"]["levels"],
                 "watch": {**z, "headline": Wt.headline(cprs, b["last_close"], z["above"], z["below"])},
                 "behaviour": behaviour,
                 "change": b["last_close"] - prev_close, "change_pct": (b["last_close"] / prev_close - 1) * 100,
                 "cpr": cprs, "pivots": pivs,
                 "history": s.cpr_history(i, 40, as_of), "indicators": ind, "session": s.session_levels(i, as_of),
-                "mtf": mtf, "posture": posture(b, ind, mtf), "verdict": verdict(b, brief),
-                "options": option_check(s, i, b, as_of),
+                "mtf": mtf, "posture": posture(b, ind, mtf), "verdict": verdict(b, brief, prov, guard),
+                "options": option_check(s, i, b, as_of, cfg, policy, store_meta),
             })
+        if entry.get("verdict") and i in ("NIFTY50", "BANKNIFTY"):
+            import pravin_global as GL
+            import pravin_plan as PL
+            entry["plan"] = PL.build({**entry, "cpr": entry["cpr"]}, brief, GL.load(), guard,
+                                     PC.policy_summary(policy, guard["trades_opened_today"]), now)
         instruments.append(entry)
     news, news_health = [], {"never_fetched": True}
     if news_db.exists():
@@ -159,17 +202,19 @@ def build(out: Path, provider: str = "fixture", news_db: Path | None = None, jou
         news = [dict(r) for r in con.execute("SELECT publisher, title, link, impact, bias, reasons, affects, published_utc "
                                              "FROM news ORDER BY COALESCE(published_utc, ingested_utc) DESC LIMIT 12")]
         news_health = N.health(con)
-    jpath = journal_db or ROOT / "journal.db"
-    jcon = J.connect(jpath) if jpath.exists() else J.connect(":memory:")
-    now = datetime.now(IST)
-    guard = J.guard_for(jcon, now, RiskPolicy(capital=CAPITAL), "paper").status(now)
+    last_fetch = None
+    if news_db.exists():
+        row = N.connect(news_db).execute("SELECT MAX(at_utc) FROM fetches WHERE ok=1").fetchone()
+        last_fetch = row[0] if row else None
     data = {
         "status": {"provider": s.p.name, "data_mode": s.p.data_mode.value, "next_session": s.next_session().isoformat(),
                    "last_session": s.p.sessions[-1].isoformat(), "calendar": s.cal.source,
                    "built_ist": now.isoformat(timespec="minutes")},
         "brief": {k: brief[k] for k in ("for_session", "demo", "completeness", "events", "event_risk_today", "global",
-                                         "announcement_risk", "risk", "disclaimer")},
-        "news": news, "news_health": news_health,
+                                         "announcement_risk", "risk", "disclaimer", "calendar")},
+        "risk": PC.policy_summary(policy, guard["trades_opened_today"]),
+        "global": __import__("pravin_global").load(),
+        "news": news, "news_health": {**news_health, "last_fetch_utc": last_fetch},
         "journal": J.review(jcon, as_of - timedelta(days=30)), "guard": guard,
         "instruments": instruments, "health": s.data_health(),
     }
@@ -185,5 +230,16 @@ if __name__ == "__main__":
     ap.add_argument("--provider", default="fixture", choices=["fixture", "kite"],
                     help="kite = your local Zerodha history. Keep that page private: do not publish it to GitHub Pages.")
     ap.add_argument("--news-db", type=Path)
+    ap.add_argument("--telegram-plan", action="store_true", help="also send today's plan to Telegram")
     a = ap.parse_args()
     build(Path(a.out), a.provider, a.news_db)
+    if a.telegram_plan:
+        import pravin_plan as PL
+        from pravin_brief import telegram_from_env
+        from pravin_kite import load_env
+        tg = telegram_from_env(load_env())
+        data = json.loads(Path(a.out).read_text().split("const DATA = ")[1].split(";\n")[0])
+        text = "\n\n".join(PL.to_text(i["plan"]) for i in data["instruments"] if i.get("plan"))
+        print(text)
+        if tg:
+            print("Telegram:", tg.send("Vriddhi · Today's plan\n\n" + text, dedupe_key=f"plan-{data['brief']['for_session']}"))

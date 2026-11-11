@@ -55,7 +55,7 @@ def load_env(path: Path = ROOT / ".env") -> dict:
             if line and not line.startswith("#") and "=" in line:
                 k, v = line.split("=", 1)
                 out[k.strip()] = v.strip().strip('"').strip("'")
-    out.update({k: v for k, v in os.environ.items() if k.startswith(("KITE_", "PRAVIN_", "TELEGRAM_", "OPENAI_", "AI_"))})
+    out.update({k: v for k, v in os.environ.items() if k.startswith(("KITE_", "PRAVIN_", "TELEGRAM_", "OPENAI_", "AI_", "FRED_"))})
     return out
 
 
@@ -176,6 +176,33 @@ def current_lot_sizes(kite, ids, today: date | None = None) -> dict[str, int]:
                 and r.get("expiry") and r["expiry"] >= today]
         if futs:
             out[iid] = int(min(futs, key=lambda r: r["expiry"])["lot_size"])
+    return out
+
+
+PROXIES = {   # label: (exchange, instrument name, kind, stand-aside threshold in % from the open)
+    "Crude (MCX)": ("MCX", "CRUDEOIL", "FUT", 2.0),
+    "Gold (MCX)": ("MCX", "GOLD", "FUT", 1.5),
+    "USD/INR": ("CDS", "USDINR", "FUT", 0.4),
+    "India VIX": ("NSE", "INDIA VIX", "INDEX", 10.0),
+}
+
+
+def resolve_proxies(kite, today: date | None = None) -> dict[str, dict]:
+    """Instrument tokens for the global proxies traded in India: nearest
+    unexpired future for commodities/currency, the index itself for India VIX."""
+    today = today or datetime.now(IST).date()
+    cache: dict[str, list] = {}
+    out = {}
+    for label, (exch, name, kind, thr) in PROXIES.items():
+        rows = cache.setdefault(exch, kite.instruments(exch))
+        if kind == "INDEX":
+            m = [r for r in rows if r.get("tradingsymbol") == name]
+        else:
+            m = [r for r in rows if r.get("name") == name and r.get("instrument_type") == "FUT"
+                 and r.get("expiry") and r["expiry"] >= today]
+            m = sorted(m, key=lambda r: r["expiry"])[:1]
+        if m:
+            out[label] = {"token": int(m[0]["instrument_token"]), "symbol": m[0]["tradingsymbol"], "threshold_pct": thr}
     return out
 
 

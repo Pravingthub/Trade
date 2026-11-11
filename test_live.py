@@ -105,8 +105,9 @@ def test_risk_guard_is_shown_on_setup_alerts(watcher):
     watcher.validated = {"CPR-NARROW-OPEN"}
     t = day_t(watcher, 0)
     watcher.guard.trades = [ClosedTrade(t, -300), ClosedTrade(t + timedelta(minutes=1), -300)]
-    alerts = [a for a in feed(watcher, narrow_long_prices(watcher)) if a.kind == "setup"]
-    assert alerts and "RISK GUARD" in alerts[0].text
+    alerts = feed(watcher, narrow_long_prices(watcher))
+    assert not [a for a in alerts if a.kind == "setup"]                 # the stance blocks the setup outright
+    assert any(a.kind == "stance" and "DONE FOR DAY" in a.text for a in alerts)
 
 
 def test_live_and_backtest_agree_on_the_same_bars(watcher):
@@ -142,3 +143,66 @@ def test_alerted_setup_is_paper_traded_on_the_next_bar(watcher, tmp_path):
     assert papers and "opened long" in papers[0].text
     t = con.execute("SELECT * FROM trades").fetchone()
     assert t["setup"] == "CPR-NARROW-OPEN" and t["from_alert"] == 1 and t["entry"] == narrow_long_prices(watcher)[4]
+
+
+def test_feed_that_never_starts_is_flagged_stale(watcher):
+    a = watcher.check_clock(day_t(watcher, 3))
+    assert watcher.stale and "no ticks received since the open" in a[-1].text
+
+
+def test_paper_book_respects_guard(watcher, tmp_path):
+    import pravin_journal as J
+    con = J.connect(tmp_path / "j.db")
+    pol = watcher.guard.policy
+    t = day_t(watcher, 0)
+    for k in range(2):
+        tid = J.open_trade(con, mode="paper", instrument="X", kind="future", side="long", entry=100, stop=90, target=130,
+                           qty=1, policy=pol, now=t + timedelta(minutes=40 * k))
+        J.close_trade(con, tid, 90, "stop", t + timedelta(minutes=40 * k + 1))
+    pb = J.PaperBook(con, pol)
+    pb.queue("X", "long", 90, 130, 1, "S", True)
+    msgs = pb.on_bar({"ts": t + timedelta(hours=2), "open": 100, "high": 101, "low": 99, "close": 100})
+    assert "blocked by the risk guard" in msgs[0]
+
+
+def test_stance_set_at_open_and_against_stance_setups_suppressed(watcher):
+    watcher.ctx.width_pct_rank = 5
+    watcher.validated = {"CPR-NARROW-OPEN"}
+    alerts = feed(watcher, narrow_long_prices(watcher))
+    st = [a for a in alerts if a.kind == "stance"]
+    assert st and "LONG BIAS" in st[0].text
+    assert any(a.kind == "setup" for a in alerts)
+    w2_alerts = []
+    watcher2 = watcher
+    watcher2.sent.clear()
+    watcher2.stance.stance = "STAND_ASIDE"
+    watcher2.stance.stand_aside_until = None
+    w2_alerts = watcher2._setups(day_t(watcher2, 20))
+    assert w2_alerts == []                                   # no setup alert while standing aside
+
+
+def test_news_and_proxy_change_the_stance(watcher):
+    feed(watcher, narrow_long_prices(watcher))
+    a = watcher.on_news("high", "check", "HDFC Bank - Financial Results", day_t(watcher, 40))
+    assert a and "STAND ASIDE" in a[0].text
+    b = watcher.on_proxy("Crude (MCX)", 2.5, 2.0, day_t(watcher, 45))
+    assert b == [] or "Crude" in b[0].text                  # already standing aside: no duplicate change
+
+
+def test_resolve_proxies_picks_nearest_future_and_vix():
+    from datetime import date
+
+    import pravin_kite as K
+
+    class Fake:
+        def instruments(self, exch):
+            if exch == "MCX":
+                return [{"name": "CRUDEOIL", "instrument_type": "FUT", "expiry": date(2026, 12, 18), "instrument_token": 2, "tradingsymbol": "CRUDEOIL26DEC"},
+                        {"name": "CRUDEOIL", "instrument_type": "FUT", "expiry": date(2026, 11, 19), "instrument_token": 1, "tradingsymbol": "CRUDEOIL26NOV"},
+                        {"name": "GOLD", "instrument_type": "FUT", "expiry": date(2026, 10, 1), "instrument_token": 9, "tradingsymbol": "OLD"}]
+            if exch == "CDS":
+                return [{"name": "USDINR", "instrument_type": "FUT", "expiry": date(2026, 11, 26), "instrument_token": 5, "tradingsymbol": "USDINR26NOV"}]
+            return [{"tradingsymbol": "INDIA VIX", "instrument_token": 264969}]
+    p = K.resolve_proxies(Fake(), date(2026, 11, 11))
+    assert p["Crude (MCX)"]["symbol"] == "CRUDEOIL26NOV" and p["India VIX"]["token"] == 264969
+    assert "Gold (MCX)" not in p                             # only an expired contract: not used

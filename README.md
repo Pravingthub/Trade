@@ -16,8 +16,25 @@ You decide and you execute in Kite.
 | Trade journal | `pravin_journal.py` | Logs every paper or real trade with its plan; review shows late stop exits, off-plan trades, trades against the risk guard, overtrading days |
 | Official announcements | `pravin_news.py` | RBI, SEBI and BSE feeds (NSE once you add the links), scored for impact, shown in the brief |
 | Option maths | `pravin_options.py` | Implied volatility, Greeks, premium after time decay, break-even, liquidity checks, lot sizing for each strike |
+| Today's plan | `pravin_plan.py` | One instruction per index at the top of the desk: what to do on each kind of open, trigger, stop, target, size, cancel and exit rules; paper-only until a setup proves itself |
+| Stance engine | `pravin_stance.py` | Changes the stance during the day on rules (open, level breaks, high-impact news and heavyweight results, crude/gold/USD-INR/VIX moves, your risk limits), each change with its reason, capped to prevent flip-flopping |
+| Global markets | `pravin_global.py` | Overnight S&P 500, Nasdaq, Nikkei, US VIX, US 10-year, Brent, USD/INR from FRED (free, official) |
 | Automation | `pravin_schedule.py` | Runs news, login reminder, brief, live alerts and the evening review on trading days (macOS) |
 | API and dashboard | `pravin_api.py`, `build_dashboard.py` | Web API and the CPR dashboard page |
+
+## Automatic morning refresh (GitHub)
+
+`.github/workflows/desk.yml` rebuilds the public desk at 06:45 and 18:00 IST on weekdays with real global markets
+(FRED) and official announcements. Prices stay DEMO there: your Zerodha data is used only on your own computer.
+It needs one repository secret: **Settings → Secrets and variables → Actions → New repository secret**,
+name `FRED_API_KEY`. Never put keys in any file in this repository; a test fails if one appears.
+
+## Your settings
+
+`vriddhi_config.json` holds capital (₹50,000–₹1,00,000), risk per trade, daily and weekly stops, max trades,
+cool-off and loss lockout. Every tool reads it and refuses limits looser than the allowed ranges.
+`events.csv`: mark each row `verified=yes` and update the `# reviewed:` date whenever you check the calendars;
+an unchecked calendar keeps the desk at NO TRADE. See `AUDIT.md` for the latest audit and checklist.
 
 ## One-time setup (your Mac)
 
@@ -26,7 +43,7 @@ cd Trade                                   # your project folder
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
 cp env.example .env                        # then open .env and fill in your keys
-pytest -q                                  # should say 183 passed
+pytest -q                                  # should say 270 passed
 ```
 
 1. **Kite Connect**: create an app at developers.kite.trade (paid "Connect" plan; check the current price there).

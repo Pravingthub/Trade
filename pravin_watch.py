@@ -52,9 +52,12 @@ def zones(levels: list[dict], close: float, atr: float, tol_atr: float = 0.08, m
         score = sum(PERIOD_WEIGHT[m["tf"]] * KIND_WEIGHT[m["kind"]] for m in c)
         lo, hi = min(prices), max(prices)
         mid = (lo + hi) / 2
+        edge = lo if lo > close else hi if hi < close else close          # nearest edge to the price
         out.append({"low": lo, "high": hi, "mid": mid, "members": [m["name"] for m in c],
                     "timeframes": sorted({m["tf"] for m in c}, key="DWM".index), "score": round(score, 2),
-                    "distance": mid - close, "distance_atr": (mid - close) / atr})
+                    "distance": mid - close, "distance_atr": (mid - close) / atr,
+                    "edge_distance": edge - close, "edge_distance_atr": (edge - close) / atr,
+                    "abs_edge_distance_atr": abs(edge - close) / atr})
     top = max((z["score"] for z in out), default=1)
     for z in out:
         z["strength"] = int(np.clip(round(z["score"] / top * 5), 1, 5))
@@ -122,6 +125,7 @@ def cpr_behaviour(history: list[dict], recent: int = 10) -> dict:
         k = (closes_above[ins_.index] | closes_below[ins_.index]).mean() * 100
         add(f"Opened inside the CPR on {len(ins_)} days; closed outside it {k:.0f}% of the time.", len(ins_))
     nr, wr = h[h["narrow"]], h[~h["narrow"]]
+    ratio = None
     if len(nr) >= 5 and len(wr) >= 5:
         ratio = nr["range"].median() / wr["range"].median()
         add(f"Narrow-CPR days (bottom 20% width) had a median range {ratio:.2f}× other days"
@@ -143,5 +147,18 @@ def cpr_behaviour(history: list[dict], recent: int = 10) -> dict:
     trend = "stepping higher" if ups >= dns + 3 else "stepping lower" if dns >= ups + 3 else "going sideways"
     add(f"Value migration: over the last {len(last)} sessions the CPR has been {trend} ({ups} up, {dns} down).", len(last),
         "bull" if trend == "stepping higher" else "bear" if trend == "stepping lower" else "neutral")
-    return {"sessions": n, "narrow_cut_pct": float(narrow_cut), "insights": ins,
+    if "open" not in h:
+        h["open"] = np.nan
+    h["ret_pct"] = (h["close"] / h["open"] - 1) * 100
+    h["next_ret_pct"] = h["ret_pct"].shift(-1)
+    dist = []
+    for cat in ("above", "inside", "below"):
+        g = h[h["open_vs_cpr"] == cat]
+        if len(g) >= 10:
+            r, nx = g["ret_pct"], g["next_ret_pct"].dropna()
+            dist.append({"open": cat, "n": len(g), "median": float(r.median()), "p25": float(r.quantile(.25)),
+                         "p75": float(r.quantile(.75)), "pct_up": float((r > 0).mean() * 100),
+                         "next_day_median": float(nx.median()) if len(nx) else None})
+    return {"sessions": n, "narrow_cut_pct": float(narrow_cut), "insights": ins, "distributions": dist,
+            "narrow_range_ratio": None if ratio is None else float(ratio), "narrow_n": int(len(nr)),
             "note": f"Descriptive statistics on the last {n} completed sessions. Not a backtest: no entries, exits or costs."}

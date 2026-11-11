@@ -25,6 +25,7 @@ import pandas as pd
 
 import pravin_backtest as B
 from pravin_quant import IST, ClosedTrade, DailyGuard, RiskPolicy, position_size
+from pravin_stance import StanceEngine
 
 OPEN, CLOSE = time(9, 15), time(15, 30)
 
@@ -103,6 +104,8 @@ class Watcher:
     stale: bool = False
     paper: object | None = None            # pravin_journal.PaperBook, to paper-trade alerts automatically
     guard_fn: Callable | None = None       # returns a DailyGuard rebuilt from the journal
+    stance: StanceEngine | None = None     # intraday stance; setup alerts must agree with it
+    opened: bool = False
 
     def __post_init__(self):
         self.ctx = B.make_context(self.daily_before, self.day, pd.DataFrame())
@@ -111,6 +114,8 @@ class Watcher:
         self.levels = {"CPR top": c.top, "CPR bottom": c.bottom, "R1": f.r1, "S1": f.s1, "R2": f.r2, "S2": f.s2,
                        "PDH": p["high"], "PDL": p["low"]}
         self.prev_close = None
+        if self.stance is None:
+            self.stance = StanceEngine(self.name, c.top, c.bottom)
 
     def _emit(self, key, kind, text, at) -> list[Alert]:
         if key in self.sent:
@@ -118,8 +123,20 @@ class Watcher:
         self.sent.add(key)
         return [Alert(key, kind, f"{self.name}: {text}", at)]
 
+    def _stance_alert(self, ch) -> list[Alert]:
+        return [Alert(f"stance-{ch.at}-{ch.new}", "stance", ch.text(self.name), datetime.fromisoformat(ch.at))] if ch else []
+
+    def on_news(self, impact: str, bias: str, title: str, at: datetime) -> list[Alert]:
+        return self._stance_alert(self.stance.on_news(impact, bias, title, at))
+
+    def on_proxy(self, label: str, change_pct: float, threshold_pct: float, at: datetime) -> list[Alert]:
+        return self._stance_alert(self.stance.on_proxy(label, change_pct, threshold_pct, at))
+
     def on_tick(self, ts: datetime, price: float) -> list[Alert]:
         out = []
+        if not self.opened and OPEN <= ts.astimezone(IST).time() < CLOSE:
+            self.opened = True
+            out += self._stance_alert(self.stance.on_open(price, ts))
         if self.stale:
             self.stale = False
             out += [Alert(f"feed-ok-{ts:%H%M%S}", "feed", f"{self.name}: data feed is back. Alerts resumed.", ts)]
@@ -133,11 +150,11 @@ class Watcher:
         for bar in self.builder.flush(now):
             out += self.on_bar(bar)
         t = now.astimezone(IST).time()
-        if OPEN <= t < CLOSE and self.last_tick and now - self.last_tick > self.stale_after and not self.stale:
+        since = self.last_tick or datetime.combine(self.day, OPEN, IST)     # no tick yet: measure from the open
+        if OPEN <= t < CLOSE and now - since > self.stale_after and not self.stale:
             self.stale = True
-            out.append(Alert(f"stale-{now:%H%M}", "feed",
-                             f"{self.name}: no ticks for {int((now - self.last_tick).total_seconds())}s. "
-                             "Feed is stale: all setup alerts are paused.", now))
+            what = f"no ticks for {int((now - since).total_seconds())}s" if self.last_tick else "no ticks received since the open"
+            out.append(Alert(f"stale-{now:%H%M}", "feed", f"{self.name}: {what}. Feed is stale: all setup alerts are paused.", now))
         return out
 
     def on_bar(self, bar: dict) -> list[Alert]:
@@ -153,6 +170,9 @@ class Watcher:
         if self.paper is not None:
             out += [Alert(f"paper-{at:%H%M}-{k}", "paper", f"{self.name}: {m}", at)
                     for k, m in enumerate(self.paper.on_bar(bar))]
+        out += self._stance_alert(self.stance.on_bar(close, at))
+        g = (self.guard_fn(at) if self.guard_fn else self.guard).status(at)
+        out += self._stance_alert(self.stance.on_guard(g, at))
         if not self.stale:
             out += self._setups(at)
         return out
@@ -169,6 +189,10 @@ class Watcher:
             setup = s.find(ctx, s.params)
             if not setup or setup.signal_bar != len(bars) - 1:
                 continue                                   # only alert on the bar that just confirmed
+            st = self.stance.stance
+            if st in ("STAND_ASIDE", "DONE_FOR_DAY") or (st == "LONG_BIAS" and setup.direction == -1) \
+                    or (st == "SHORT_BIAS" and setup.direction == 1):
+                continue                                   # the stance overrides: no alert against it
             side = "LONG" if setup.direction == 1 else "SHORT"
             ref = bars["close"].iloc[-1]
             gs = (self.guard_fn(at) if self.guard_fn else self.guard).status(at)
@@ -223,20 +247,58 @@ def run_live(ids: list[str], show_unvalidated: bool, capital: float, notify: Cal
                                 paper=book, guard_fn=guard_fn)
         notify(f"Watching {DEFAULT_INSTRUMENTS[iid][1]}: CPR {watchers[tok].ctx.cpr.bottom:,.2f}–{watchers[tok].ctx.cpr.top:,.2f}; "
                f"validated setups: {', '.join(sorted(validated)) or 'none'}")
+    from pravin_kite import resolve_proxies
+    proxies = resolve_proxies(kite)
+    proxy_by_token = {v["token"]: (k, v) for k, v in proxies.items()}
+    proxy_open: dict[int, float] = {}
+    notify("Watching proxies: " + (", ".join(f"{k} ({v['symbol']})" for k, v in proxies.items()) or "none found"))
     kt = KiteTicker(env["KITE_API_KEY"], load_token())
     lock = threading.Lock()
+
+    def poll_news():
+        import pravin_news as N
+        con = N.connect()
+        seen = {r[0] for r in con.execute("SELECT id FROM news")}
+        while datetime.now(IST).time() < time(15, 30):
+            try:
+                N.fetch_all(con)
+                fresh = [dict(r) for r in con.execute("SELECT * FROM news") if r["id"] not in seen]
+                seen |= {r["id"] for r in fresh}
+                with lock:
+                    for item in fresh:
+                        if item["impact"] in ("high", "medium"):
+                            notify(f"News [{item['impact']}/{item['bias']}]: {item['publisher']}: {item['title']}")
+                        for w in watchers.values():
+                            if not item["affects"] or w.iid in item["affects"]:
+                                for a in w.on_news(item["impact"], item["bias"] or "", item["title"], datetime.now(IST)):
+                                    notify(a.text)
+            except Exception as e:                  # news problems never stop price monitoring
+                print("news poll failed:", e)
+            _time.sleep(300)
+
+    threading.Thread(target=poll_news, daemon=True).start()
 
     def on_ticks(ws, ticks):
         with lock:
             for t in ticks:
+                pr = proxy_by_token.get(t["instrument_token"])
+                if pr:
+                    px = float(t["last_price"])
+                    base = proxy_open.setdefault(t["instrument_token"], px)
+                    chg = (px / base - 1) * 100
+                    for w in watchers.values():
+                        for a in w.on_proxy(pr[0], chg, pr[1]["threshold_pct"], datetime.now(IST)):
+                            notify(a.text)
+                    continue
                 w = watchers.get(t["instrument_token"])
                 if w:
                     for a in w.on_tick(datetime.now(IST), float(t["last_price"])):
                         notify(a.text)
 
     def on_connect(ws, response):
-        ws.subscribe(list(watchers))
-        ws.set_mode(ws.MODE_LTP, list(watchers))
+        toks = list(watchers) + list(proxy_by_token)
+        ws.subscribe(toks)
+        ws.set_mode(ws.MODE_LTP, toks)
 
     def on_close(ws, code, reason):
         print(f"WebSocket closed ({code}): {reason}")

@@ -114,3 +114,9 @@ def test_old_database_is_migrated(tmp_path):
     new = N.connect(p)
     r = new.execute("SELECT bias, impact FROM news").fetchone()
     assert r["bias"] == "supportive" and r["impact"] == "high"
+
+
+def test_heavyweight_results_are_high_impact():
+    sc = N.score("HDFC Bank Limited - Financial Results for the quarter ended September 30, 2026", "")
+    assert sc["impact"] == "high" and "BANKNIFTY" in sc["affects"] and sc["bias"] == "check"
+    assert N.score("Small Co Ltd - Financial Results for the quarter", "")["impact"] == "low"

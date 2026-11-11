@@ -71,7 +71,7 @@ def ev(chain, **kw):
 
 def test_ranks_liquid_near_money_calls_and_excludes_far_otm():
     T = O.year_fraction(NOW, EXP)
-    res = ev(make_chain(25000, T))
+    res = ev(make_chain(25000, T), target=25260, stop=24965)
     el = [c for c in res["candidates"] if c["eligible"]]
     assert res["status"] == "ok" and el
     assert all(0.35 <= c["delta"] <= 0.75 for c in el)
@@ -80,7 +80,7 @@ def test_ranks_liquid_near_money_calls_and_excludes_far_otm():
     assert el == sorted(el, key=lambda c: -c["option_rr"])
     best = el[0]
     assert best["premium_at_stop"] < best["ask"] < best["premium_at_target"]
-    assert 25000 < best["breakeven_underlying"] < 25150
+    assert 25000 < best["breakeven_underlying"] < 25260
 
 
 def test_wide_spread_and_small_budget_mean_no_trade():
@@ -94,7 +94,7 @@ def test_wide_spread_and_small_budget_mean_no_trade():
 
 def test_puts_for_short_direction():
     T = O.year_fraction(NOW, EXP)
-    res = ev(make_chain(25000, T, kind="PE"), direction=-1, target=24850, stop=25060)
+    res = ev(make_chain(25000, T, kind="PE"), direction=-1, target=24740, stop=25035)
     el = [c for c in res["candidates"] if c["eligible"]]
     assert el and all(c["kind"] == "PE" and c["delta"] < 0 for c in el)
 
@@ -125,3 +125,35 @@ def test_bad_quotes_excluded():
     res = ev(ch)
     bad = {c["strike"]: c["reasons"] for c in res["candidates"] if not c["eligible"]}
     assert "no valid two-sided quote" in bad[ch[8]["strike"]]
+
+
+def test_synthetic_chain_is_never_actionable():
+    T = O.year_fraction(NOW, EXP)
+    res = ev(make_chain(25000, T), source="synthetic")
+    assert res["status"] == "illustration"
+    assert all(not c["eligible"] and c["lots"] == 0 for c in res["candidates"])
+    assert all(c["reasons"][0].startswith("synthetic") for c in res["candidates"])
+
+
+def test_unverified_lot_size_cannot_be_sized():
+    T = O.year_fraction(NOW, EXP)
+    res = ev(make_chain(25000, T), lot_size=None)
+    assert res["status"] == "no_trade" and all("lot size unverified" in " ".join(c["reasons"]) for c in res["candidates"])
+
+
+def test_chain_validation_refuses_bad_inputs():
+    T = O.year_fraction(NOW, EXP)
+    assert ev(make_chain(25000, T), expiry=date(2026, 11, 10))["status"] == "refused"
+    bad = make_chain(25000, T)
+    bad[0]["strike"] += 7
+    assert "not multiples" in ev(bad, strike_step=50)["reason"]
+    far = make_chain(30000, T)
+    assert "outside the chain" in ev(far)["reason"]
+
+
+def test_rr_is_net_of_charges_and_iv_shock():
+    T = O.year_fraction(NOW, EXP)
+    c = [x for x in ev(make_chain(25000, T))["candidates"] if x["iv"]][0]
+    assert c["charges_per_unit"] > 0
+    assert c["target"]["iv_down"] < c["target"]["base"] < c["target"]["iv_up"]
+    assert c["option_rr"] <= c["rr_net_base"]                              # conservative figure is the worse one

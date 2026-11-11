@@ -32,6 +32,7 @@ def test_brief_refreshes_data_when_logged_in():
     log, runner, notify = calls()
     S.run("brief", "kite", date(2026, 11, 12), runner, notify, has_token=True)
     assert log[0][:2] == ["pravin_kite.py", "fetch"] and log[1][0] == "pravin_brief.py"
+    assert log[2] == ["build_dashboard.py", "--provider", "kite", "--telegram-plan"]
 
 
 def test_without_login_brief_warns_and_live_does_not_start():

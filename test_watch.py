@@ -1,3 +1,4 @@
+import pytest
 
 import pravin_watch as Wt
 
@@ -28,7 +29,7 @@ def test_headline_reads_mixed_timeframes():
 
 
 def H(open_vs, close, top=101, bottom=99, high=105, low=95, width=0.5, virgin=False, rel="higher_value"):
-    return {"open_vs_cpr": open_vs, "close": close, "cpr_top": top, "cpr_bottom": bottom, "high": high, "low": low,
+    return {"open_vs_cpr": open_vs, "open": 100.0, "close": close, "cpr_top": top, "cpr_bottom": bottom, "high": high, "low": low,
             "width_pct": width, "virgin": virgin, "relation": rel}
 
 
@@ -61,3 +62,13 @@ def test_virgin_revisit_rate_by_hand():
     base[20] = H("above", 120, top=101, bottom=99, high=125, low=110, virgin=True)    # revisited next day (default rows)
     t = " ".join(i["text"] for i in Wt.cpr_behaviour(base)["insights"])
     assert "within 5 sessions 50%" in t
+
+
+def test_edge_distance_and_distributions():
+    z = Wt.zones([lvl("a", 1010), lvl("b", 1013)], close=1000, atr=50, tol_atr=0.08)["above"][0]
+    assert z["edge_distance"] == 10 and z["distance"] == 11.5 and z["abs_edge_distance_atr"] == 0.2
+    rows = [dict(H("above", 103), open=100) for _ in range(12)] + [dict(H("below", 98), open=100) for _ in range(12)] \
+        + [dict(H("inside", 100), open=100) for _ in range(12)]
+    d = {x["open"]: x for x in Wt.cpr_behaviour(rows)["distributions"]}
+    assert d["above"]["median"] == pytest.approx(3.0) and d["above"]["pct_up"] == 100 and d["above"]["n"] == 12
+    assert d["below"]["median"] == pytest.approx(-2.0)

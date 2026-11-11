@@ -42,13 +42,15 @@ def test_short_trade_and_validation(con):
 
 def test_guard_state_is_rebuilt_from_journal(con):
     for k in range(2):
-        tid = op(con, now=T0 + timedelta(minutes=k))
-        J.close_trade(con, tid, 100, "stop", T0 + timedelta(minutes=k + 5))
+        tid = op(con, now=T0 + timedelta(minutes=40 * k))
+        J.close_trade(con, tid, 100, "stop", T0 + timedelta(minutes=40 * k + 5))
     g = J.guard_for(con, T0 + timedelta(hours=2), POL, "paper").status(T0 + timedelta(hours=2))
     assert not g["can_recommend"] and any("in a row" in r for r in g["reasons"])
-    # a third trade is recorded as taken against the guard
-    tid = op(con, now=T0 + timedelta(hours=2))
-    assert con.execute("SELECT guard_ok FROM trades WHERE id=?", (tid,)).fetchone()[0] == 0
+    # a third PAPER trade is refused; a LIVE trade (already at the broker) is recorded and flagged
+    with pytest.raises(J.GuardBlocked):
+        op(con, now=T0 + timedelta(hours=2))
+    tid = op(con, now=T0 + timedelta(hours=2), mode="live")
+    assert con.execute("SELECT guard_ok FROM trades WHERE id=?", (tid,)).fetchone()[0] == 1   # live guard is separate
 
 
 def test_review_measures_discipline(con):
@@ -56,13 +58,13 @@ def test_review_measures_discipline(con):
     J.close_trade(con, a, 100, "stop", T0 + timedelta(minutes=30))
     b = op(con, now=T0 + timedelta(hours=1), setup="discretionary", validated=False)
     J.close_trade(con, b, 80, "manual", T0 + timedelta(hours=2))   # late: stop was 100, exited 80
-    c = op(con, now=T0 + timedelta(hours=3))
+    c = op(con, now=T0 + timedelta(hours=3), mode="live")      # after two losses: live trade recorded, flagged
     J.close_trade(con, c, 160, "target", T0 + timedelta(hours=4))
     rv = J.review(con, T0.date())
     d = rv["discipline"]
     assert d["late_stop_exits"] == 1 and d["late_stop_cost"] == pytest.approx(20 * 65)
     assert d["off_plan_trades"] == 1 and d["off_plan_net"] < 0
-    assert d["trades_after_guard_said_stop"] == 1           # third trade came after two losses in a row
+    assert rv["by_mode"]["live"]["trades"] == 1
     assert rv["by_setup"]["CPR-NARROW-OPEN"]["trades"] == 2
     md = J.review_markdown(rv)
     assert "Late stop exits: 1" in md and "| discretionary |" in md
@@ -70,7 +72,7 @@ def test_review_measures_discipline(con):
 
 def test_overtrading_days_counted(con):
     for k in range(5):
-        tid = op(con, now=T0 + timedelta(minutes=10 * k))
+        tid = op(con, now=T0 + timedelta(minutes=10 * k), mode="live")
         J.close_trade(con, tid, 125, "manual", T0 + timedelta(minutes=10 * k + 5))
     assert J.review(con, T0.date())["discipline"]["days_over_trade_limit"] == 1
 
