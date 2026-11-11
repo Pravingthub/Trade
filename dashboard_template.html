@@ -31,6 +31,22 @@ button{font:inherit;color:inherit}
 button:focus-visible,a:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 a{color:inherit}
 .top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--panel);border-bottom:1px solid var(--line)}
+.brandrow{display:flex;flex-direction:column}
+.tabbar{max-width:1520px;margin:0 auto;padding:0 16px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;border-top:1px solid var(--line)}
+.tabs{display:flex;gap:2px}
+.tabs button{border:0;background:none;padding:10px 14px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.tabs button[aria-pressed="true"]{color:var(--ink);border-bottom-color:var(--cpr)}
+.statusline{margin-left:auto;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px;color:var(--dim);letter-spacing:.03em;padding:6px 0}
+.statusline span{display:inline-flex;gap:5px;align-items:center;white-space:nowrap}
+.statusline i{width:6px;height:6px;border-radius:50%;background:var(--dim);display:inline-block}
+.statusline .ok i{background:var(--bull)} .statusline .warn i{background:var(--warn)} .statusline .bad i{background:var(--bear)}
+.statusline .warn{color:var(--warn)} .statusline .bad{color:var(--bear)}
+.tab[hidden]{display:none}
+.c4{grid-column:span 4}.c8{grid-column:span 8}
+.kl{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:7px 0 7px 9px;border-bottom:1px solid var(--line);border-left:3px solid var(--line)}
+.kl:last-child{border-bottom:0}
+.kl.res{border-left-color:var(--bear)} .kl.sup{border-left-color:var(--bull)} .kl.cpr{border-left-color:var(--cpr);background:var(--cpr-t)} .kl.px{border-left-color:var(--ink)}
+.kl .n{font-size:12px;color:var(--muted);grid-column:1/-1}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:21;background:var(--panel)}
 .topin{max-width:1520px;margin:0 auto;padding:8px 16px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}
 .brand{font-weight:600;letter-spacing:.06em;font-size:13px}
@@ -43,11 +59,11 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .pill.warn{color:var(--warn);border-color:var(--warn-t);background:var(--warn-t)}
 .banner{background:var(--warn-t);color:var(--warn);border-bottom:1px solid var(--line)}
 .banner div{max-width:1520px;margin:0 auto;padding:6px 16px;font-size:12.5px;font-weight:500}
-.tape{max-width:1520px;margin:12px auto 0;padding:0 16px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
-.tk{text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:9px 12px;cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:2px 10px}
+.tape{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:6px;margin-left:auto}
+.tk{text-align:left;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:0 10px}
 .tk[aria-pressed="true"]{border-color:var(--cpr);box-shadow:inset 0 0 0 1px var(--cpr)}
 .tk .sym{font-weight:600;font-size:12px;letter-spacing:.05em}
-.tk .px{font-size:16px;font-weight:500}
+.tk .px{font-size:14px;font-weight:500}
 .tk .chg{font-size:11.5px;text-align:right}
 .tk .st{font-size:11px;text-align:right;align-self:center}
 @media (max-width:760px){.tape{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -56,8 +72,16 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .desk{max-width:1520px;margin:12px auto 24px;padding:0 16px;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px}
 .c3{grid-column:span 3}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}.c12{grid-column:span 12}
 .stack{display:flex;flex-direction:column;gap:12px;min-width:0}
-@media (max-width:1180px){.c3{grid-column:span 6}.c6{grid-column:span 12;order:-1}.c5,.c7{grid-column:span 12}.verdict{order:-2}}
-@media (max-width:760px){.desk>*{grid-column:span 12!important}}
+@media (max-width:1180px){.c3,.c4{grid-column:span 6}.c6,.c8{grid-column:span 12}.c5,.c7{grid-column:span 12}}
+@media (max-width:760px){.desk>*{grid-column:span 12!important}
+  .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--panel);border-top:1px solid var(--line);padding:0 4px env(safe-area-inset-bottom,0px)}
+  .tabs{width:100%;justify-content:space-between}.tabs button{padding:12px 6px;font-size:12px;flex:1}
+  .statusline{display:none} main{padding-bottom:64px}
+  .top{position:static} .topin{padding:8px 12px}
+  .tape{display:flex!important;overflow-x:auto;margin-left:0;width:100%;gap:6px;scrollbar-width:none}
+  .tape::-webkit-scrollbar{display:none}
+  .tape .tk{flex:0 0 auto;min-width:138px;display:grid!important;grid-template-columns:1fr;gap:0}
+  .tape .tk .st{display:none} .tape .tk .chg{text-align:left}}
 .p{background:var(--panel);border:1px solid var(--line);border-radius:6px;min-width:0}
 .ph{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .ph h2{margin:0;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
@@ -176,50 +200,57 @@ footer b{color:var(--muted);font-weight:500}
 </head>
 <body>
 <header class="top"><div class="topin">
-  <div><div class="brand">VRIDDHI<b> ·</b> DESK</div><div class="sess mono" id="sess"></div></div>
-  <div class="pills" id="pills"></div>
-</div></header>
+  <div class="brandrow"><div class="brand">VRIDDHI<b> ·</b> DESK</div><div class="sess mono" id="sess"></div></div>
+  <nav class="tape" id="tape" aria-label="Instrument"></nav>
+</div>
+<div class="tabbar"><nav class="tabs" id="tabs" aria-label="Sections">
+  <button data-t="today">Today</button><button data-t="levels">Levels</button><button data-t="market">Market</button><button data-t="evidence">Evidence</button><button data-t="risk">Risk</button>
+</nav><div class="statusline" id="pills"></div></div></header>
 <div class="banner" id="banner" hidden><div></div></div>
 
-<nav class="tape" id="tape" aria-label="Instruments"></nav>
+<main>
+<section class="tab" data-tab="today"><div class="desk">
+  <section class="p c8 plan" id="plan" aria-label="Today's plan"></section>
+  <div class="stack c4">
+    <section class="p"><div class="ph"><h2>Levels that matter today</h2><span class="aside">nearest first</span></div><div class="pb" id="keylv"></div></section>
+    <section class="p"><div class="ph"><h2>Before you trade</h2></div><div class="pb" id="todayctx"></div></section>
+  </div>
+</div></section>
 
-<main class="desk">
-  <section class="p c12 plan" id="plan" aria-label="Today's plan"></section>
-  <section class="p c12 verdict" id="verdict" aria-label="Desk verdict"></section>
+<section class="tab" data-tab="levels" hidden><div class="desk">
+  <section class="p c5"><div class="ph"><h2 id="wth">What to watch</h2></div><div class="pb" id="watch"></div></section>
+  <section class="p c7 ladder"><div class="ph"><h2 id="lvh">Levels</h2>
+    <div class="seg" id="period"><button data-p="day" aria-pressed="true">Daily</button><button data-p="week" aria-pressed="false">Weekly</button><button data-p="month" aria-pressed="false">Monthly</button></div>
+    </div><div class="pb"><div id="ladder"></div><div class="note" id="srcnote"></div><div class="note" id="rawnote"></div></div></section>
+  <section class="p c12 chart"><div class="ph"><h2>Daily CPR · last 40 sessions + today</h2><span class="aside">dashed = untouched · ▲ narrow CPR day</span></div>
+    <div class="pb"><div id="chart"></div><div class="readout" id="readout"></div>
+    <div class="lbl" style="margin-top:12px">What this instrument does around its CPR</div><ul class="ins" id="insights"></ul><p class="note" id="insnote"></p></div></section>
+</div></section>
+
+<section class="tab" data-tab="market" hidden><div class="desk">
+  <section class="p c4"><div class="ph"><h2>Global overnight</h2><span class="aside" id="glaside"></span></div><div class="pb" id="global"></div></section>
+  <section class="p c5"><div class="ph"><h2>Official announcements</h2>
+    <div class="seg" id="nf"><button data-f="all" aria-pressed="true">All</button><button data-f="notable" aria-pressed="false">Notable</button><button data-f="bank" aria-pressed="false">Banking</button></div></div>
+    <div class="pb"><p class="sum" id="newssum"></p><div class="legend"><span class="bias supportive">supportive</span><span class="bias adverse">adverse</span><span class="bias check">high impact · read</span><span class="bias neutral">relevant</span><span class="bias routine">routine</span></div>
+    <ul class="feed" id="news"></ul><p class="note" id="newsaside"></p></div></section>
+  <section class="p c3"><div class="ph"><h2>Events</h2><span class="aside">events.csv</span></div><div class="pb"><ul class="feed" id="events"></ul></div></section>
+</div></section>
+
+<section class="tab" data-tab="evidence" hidden><div class="desk">
+  <section class="p c12 verdict" id="verdict" aria-label="Why this call"></section>
+  <section class="p c4"><div class="ph"><h2>Market regime</h2><span class="aside" id="rgaside"></span></div><div class="pb" id="regime"></div></section>
+  <section class="p c4"><div class="ph"><h2>Signals</h2><span class="aside">descriptive, not forecasts</span></div><div class="pb" id="posture"></div></section>
+  <section class="p c4"><div class="ph"><h2>Setups</h2><span class="aside">gate: backtest</span></div><div class="pb scroll" id="setups"></div></section>
   <section class="p c12"><div class="ph"><h2>Trade candidates</h2><span class="aside">no scores: nothing is calibrated yet · every gate must pass</span></div><div class="pb" id="cands"></div></section>
-
-  <div class="stack c3">
-    <section class="p"><div class="ph"><h2>Market regime</h2><span class="aside" id="rgaside"></span></div><div class="pb" id="regime"></div></section>
-    <section class="p"><div class="ph"><h2>Signals</h2><span class="aside">descriptive, not forecasts</span></div><div class="pb" id="posture"></div></section>
-    <section class="p"><div class="ph"><h2>Opening scenarios</h2></div><div class="pb" id="scen"></div></section>
-    <section class="p"><div class="ph"><h2>Setups</h2><span class="aside">gate: backtest</span></div><div class="pb scroll" id="setups"></div></section>
-  </div>
-
-  <div class="stack c6">
-    <section class="p"><div class="ph"><h2 id="wth">What to watch</h2><div class="seg" id="instseg" aria-label="Instrument"></div></div>
-      <div class="pb" id="watch"></div></section>
-    <section class="p ladder"><div class="ph"><h2 id="lvh">Levels</h2>
-      <div class="seg" id="period"><button data-p="day" aria-pressed="true">Daily</button><button data-p="week" aria-pressed="false">Weekly</button><button data-p="month" aria-pressed="false">Monthly</button></div>
-      </div><div class="pb"><div id="ladder"></div><div class="note" id="srcnote"></div><div class="note" id="rawnote"></div></div></section>
-    <section class="p chart"><div class="ph"><h2>Daily CPR · last 40 sessions + today</h2><span class="aside">dashed = untouched · ▲ narrow CPR day</span></div>
-      <div class="pb"><div id="chart"></div><div class="readout" id="readout"></div>
-      <div class="lbl" style="margin-top:12px">What this instrument does around its CPR</div><ul class="ins" id="insights"></ul><p class="note" id="insnote"></p></div></section>
-  </div>
-
-  <div class="stack c3">
-    <section class="p"><div class="ph"><h2>Risk desk</h2><span class="aside" id="capaside"></span></div><div class="pb" id="risk"></div></section>
-    <section class="p"><div class="ph"><h2>Global overnight</h2><span class="aside" id="glaside"></span></div><div class="pb" id="global"></div></section>
-    <section class="p"><div class="ph"><h2>Official announcements</h2>
-      <div class="seg" id="nf"><button data-f="all" aria-pressed="true">All</button><button data-f="notable" aria-pressed="false">Notable</button><button data-f="bank" aria-pressed="false">Banking</button></div></div>
-      <div class="pb"><p class="sum" id="newssum"></p><div class="legend"><span class="bias supportive">supportive</span><span class="bias adverse">adverse</span><span class="bias check">high impact · read</span><span class="bias neutral">relevant</span><span class="bias routine">routine</span></div>
-      <ul class="feed" id="news"></ul><p class="note" id="newsaside"></p></div></section>
-    <section class="p"><div class="ph"><h2>Events</h2><span class="aside">events.csv</span></div><div class="pb"><ul class="feed" id="events"></ul></div></section>
-  </div>
-
   <section class="p c7"><div class="ph"><h2>Option strike check</h2><span class="aside" id="optaside"></span></div><div class="pb scroll" id="opts"></div></section>
   <section class="p c5"><div class="ph"><h2>Timeframes &amp; indicators</h2></div><div class="pb scroll" id="mtf"></div></section>
+  <section class="p c12"><div class="ph"><h2>Data inputs</h2></div><div class="pb" id="foot"></div></section>
+</div></section>
+
+<section class="tab" data-tab="risk" hidden><div class="desk">
+  <section class="p c6"><div class="ph"><h2>Risk desk</h2><span class="aside" id="capaside"></span></div><div class="pb" id="risk"></div></section>
+</div></section>
 </main>
-<footer id="foot"></footer>
 
 <script>
 const DATA = __DATA__;
@@ -239,7 +270,7 @@ function topbar() {
   const st = DATA.status, b = DATA.brief;
   $("sess").textContent = `${dt(b.for_session, { weekday: "short", day: "2-digit", month: "short", year: "numeric" }).toUpperCase()} · PRE-OPEN · DATA TO ${dt(st.last_session).toUpperCase()}`;
   const comp = Object.fromEntries(b.completeness.map(c => [c.input, c]));
-  const pill = (cls, t) => `<span class="pill ${cls}"><i></i>${esc(t)}</span>`;
+  const pill = (cls, t) => `<span class="${cls}"><i></i>${esc(t)}</span>`;
   const bt = comp["backtests"], oa = comp["official announcements"];
   $("pills").innerHTML = [
     pill(st.data_mode === "simulated" ? "warn" : "ok", st.data_mode === "simulated" ? "DATA · DEMO" : "DATA · " + st.data_mode.toUpperCase()),
@@ -278,7 +309,7 @@ function verdict() {
 
 function posture() {
   $("posture").innerHTML = cur().posture.map(p => `<div class="row"><span class="k">${esc(p.label)}</span><span class="tag ${p.tone}">${esc(p.value)}</span></div>`).join("");
-  $("scen").innerHTML = cur().brief.scenarios.map(s => `<div class="sc"><b>If it opens ${esc(s.if_open)}</b><span>${esc(s.reference)}</span></div>`).join("");
+  if ($("scen")) $("scen").innerHTML = cur().brief.scenarios.map(s => `<div class="sc"><b>If it opens ${esc(s.if_open)}</b><span>${esc(s.reference)}</span></div>`).join("");
   const ST = { candidate_for_paper_trading: ["passed", "bull"], rejected: ["failed", "bear"], insufficient_sample: ["thin sample", "warn"], not_backtested: ["untested", "warn"] };
   $("setups").innerHTML = `<table><thead><tr><th>Setup</th><th>Today</th><th>Test</th></tr></thead><tbody>${cur().brief.setups.map(s => {
     const today = s.conditions_met_premarket === null ? ["on the open", "neutral"] : s.conditions_met_premarket ? ["met", "bull"] : ["not today", "neutral"];
@@ -305,6 +336,35 @@ function watch() {
       <div><div class="zh bear">Resistance above</div>${w.above.length ? [...w.above].map(z => zone(z, "res")).join("") : '<p class="empty">No levels within 2.5 ATR above.</p>'}</div>
       <div><div class="zh bull">Support below</div>${w.below.length ? w.below.map(z => zone(z, "sup")).join("") : '<p class="empty">No levels within 2.5 ATR below.</p>'}</div>
     </div><p class="note">Zones merge daily (D), weekly (W) and monthly (M) levels lying within ${f(w.tolerance_points, 0)} points of each other. Distance is to the nearest edge (hover for the midpoint). More dots = more timeframes agreeing. Nearest first.</p>`;
+}
+
+function keylv() {
+  const x = cur(), w = x.watch, c = x.cpr.day.levels, close = x.brief.last_close, pd = x.brief.previous_day;
+  const row = (cls, name, lo, hi, dist, note) => `<div class="kl ${cls}"><span class="num">${f(lo, 0)}${hi - lo >= 1 ? "–" + f(hi, 0) : ""}</span>
+    <span class="num ${cls === "res" ? "bear" : cls === "sup" ? "bull" : ""}">${dist == null ? "" : (dist >= 0 ? "+" : "") + f(dist, 0) + " pts"}</span><span class="n">${esc(name)}${note ? " · " + esc(note) : ""}</span></div>`;
+  const notCpr = z => !(z.low <= c.top + 1 && z.high >= c.bottom - 1 && z.members.every(m => m.startsWith("D CPR") || m === "D pivot"));
+  const above = w.above.filter(notCpr).slice(0, 2).reverse(), below = w.below.filter(notCpr).slice(0, 2);
+  $("keylv").innerHTML =
+    above.map(z => row("res", z.members.slice(0, 2).join(", "), z.low, z.high, z.edge_distance, z.timeframes.join("+"))).join("") +
+    row("cpr", "Today's CPR (" + x.brief.cpr.day.width_label + ")", c.bottom, c.top, null, "") +
+    row("px", "Last close", close, close, null, x.brief.cpr.day.close_position + " the CPR") +
+    below.map(z => row("sup", z.members.slice(0, 2).join(", "), z.low, z.high, z.edge_distance, z.timeframes.join("+"))).join("") +
+    `<p class="note">Previous day high ${f(pd.high)} · low ${f(pd.low)}. All zones in <a href="#levels">Levels</a>.</p>`;
+}
+
+function todayctx() {
+  const x = cur(), p = x.plan, r = DATA.risk, g = DATA.global, b = DATA.brief;
+  const line = (k, v, cls) => `<div class="row"><span class="k">${k}</span><span class="${cls || ""}" style="text-align:right">${v}</span></div>`;
+  const ev = b.events.length ? b.events.map(e => `${esc(e.event.split(" (")[0])} → ${dt(e.affects_session)}`).join("<br>") : (b.calendar.checked ? "none in 7 days" : "calendar not checked");
+  const gt = g && g.items && g.items.length ? `<span class="tag ${g.tone === "risk-on" ? "bull" : g.tone === "risk-off" || g.tone === "shock" ? "bear" : "neutral"}">${esc(g.tone)}</span>` : "not fetched";
+  $("todayctx").innerHTML =
+    line("Data", esc(x.provenance.status.replace("_", " ").toLowerCase()) + " · " + esc(x.provenance.health.toLowerCase()), x.provenance.status === "LIVE_VERIFIED" ? "bull" : "warn") +
+    line("Global overnight", gt) +
+    line("Events", ev, b.event_risk_today ? "bear" : "") +
+    line("Risk left today", `${r.trades_left}/${r.max_trades} trades · ₹${f(r.per_trade, 0)} each`) +
+    line("Stop for the day", `₹${f(r.daily_stop, 0)} or ${r.loss_lockout} losses in a row`) +
+    (p ? `<ul class="ctx">${p.context.slice(0, 2).map(t => `<li>${esc(t)}</li>`).join("")}</ul>` : "") +
+    `<p class="note">No new trades after 14:30 · flat by 15:15 · log the plan in the journal before entering.</p>`;
 }
 
 function globalPanel() {
@@ -334,8 +394,7 @@ function plan() {
       ${row("Trigger", c.trigger)}${row("Entry", c.entry)}${row("Stop", c.stop)}${row("Target", c.target)}
       ${c.reward_risk != null && c.direction !== "WAIT" ? `<dt>R:R</dt><dd class="num">1 : ${f(c.reward_risk)}</dd>` : ""}
       ${row("Size", c.size)}${row("Option", c.option)}${row("Cancel if", c.cancel_if)}${row("Exit", c.exit)}</dl></div>`).join("")}</div>
-    <ul class="ctx">${p.context.map(x => `<li>${esc(x)}</li>`).join("")}${p.rules.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
-    <p class="note">During market hours the live watcher updates the stance on rules (open, level breaks, news, results, global moves, your risk limits) and sends each change to your phone with its reason. Details and evidence are below.</p>`;
+    <p class="note">During market hours the stance updates on rules (open, level breaks, news, results, global moves, your risk limits) and each change reaches your phone with its reason. The reasoning behind this plan is in <a href="#evidence">Evidence</a>.</p>`;
 }
 
 function regime() {
@@ -528,12 +587,27 @@ function foot() {
     <div>${esc(DATA.brief.disclaimer)} Built ${esc(DATA.status.built_ist.replace("T", " "))} IST from ${esc(DATA.status.provider)}. Calendar: ${esc(DATA.status.calendar)}. Every number on this screen comes from the Python engine; the page calculates nothing.</div>`;
 }
 
-function render() { topbar(); tape(); if (!cur().verdict) return; instseg(); plan(); globalPanel(); watch(); verdict(); regime(); cands(); posture(); ladder(); chart(); risk(); feeds(); options(); mtf(); foot(); }
+const TABS = ["today", "levels", "market", "evidence", "risk"];
+function showTab(t) {
+  if (!TABS.includes(t)) t = "today";
+  S.t = t;
+  document.querySelectorAll(".tab").forEach(el => el.hidden = el.dataset.tab !== t);
+  [...$("tabs").children].forEach(b => b.setAttribute("aria-pressed", String(b.dataset.t === t)));
+  if (t === "levels" && cur().verdict) { ladder(); chart(); }
+  if (location.hash.slice(1) !== t) history.replaceState(null, "", "#" + t);
+  scrollTo(0, 0);
+}
+$("tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (b) showTab(b.dataset.t); });
+addEventListener("hashchange", () => showTab(location.hash.slice(1)));
+document.addEventListener("click", e => { const a = e.target.closest('a[href^="#"]'); if (a && TABS.includes(a.getAttribute("href").slice(1))) { e.preventDefault(); showTab(a.getAttribute("href").slice(1)); } });
+
+function render() { topbar(); tape(); if (!cur().verdict) return; plan(); keylv(); todayctx(); globalPanel(); watch(); verdict(); regime(); cands(); posture(); ladder(); chart(); risk(); feeds(); options(); mtf(); foot(); }
 $("period").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S.p = b.dataset.p; [...$("period").children].forEach(x => x.setAttribute("aria-pressed", String(x === b))); ladder(); });
 $("nf").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S.nf = b.dataset.f; [...$("nf").children].forEach(x => x.setAttribute("aria-pressed", String(x === b))); feeds(); });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
 let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { ladder(); chart(); }, 150); });
 render();
+showTab(location.hash.slice(1) || "today");
 </script>
 </body>
 </html>
