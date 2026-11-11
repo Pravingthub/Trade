@@ -2,7 +2,7 @@
 filterwarnings = ["ignore::DeprecationWarning"]
 
 [tool.ruff]
-line-length = 135
+line-length = 160
 target-version = "py311"
 
 [tool.ruff.lint]

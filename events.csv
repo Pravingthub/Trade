@@ -1,0 +1,5 @@
+date,time_ist,region,event,impact,source
+# Fill in from official calendars (RBI, MoSPI, US BLS/Fed, company filings). impact: high | medium | low
+# Example rows (edit or delete):
+2026-12-04,10:00,IN,RBI monetary policy decision (example - verify date),high,rbi.org.in
+2026-12-09,23:30,US,FOMC rate decision (example - verify date),high,federalreserve.gov

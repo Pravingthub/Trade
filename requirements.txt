@@ -1,5 +1,7 @@
-# Runtime
 numpy>=1.26
 pandas>=2.2
 fastapi>=0.115
 uvicorn[standard]>=0.30
+kiteconnect>=5.0          # Zerodha's official client (read-only use here)
+# Optional, only for the AI summary in the morning brief:
+# openai>=1.40

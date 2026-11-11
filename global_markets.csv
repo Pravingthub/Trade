@@ -1,0 +1,2 @@
+as_of_ist,market,last,change_pct,source
+# Optional. Enter overnight closes yourself (or from a licensed feed later). Rows older than 18 hours are flagged stale.

@@ -11,11 +11,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-from pravin_api import FixtureMarketDataProvider, Service  # noqa: E402
+from pravin_api import Service, make_provider  # noqa: E402
 
 
-def build(out: Path):
-    s = Service(FixtureMarketDataProvider())
+def build(out: Path, provider: str = "fixture"):
+    s = Service(make_provider(provider))
     data = {"status": {"provider": s.p.name, "data_mode": s.p.data_mode.value,
                        "next_session": s.next_session().isoformat(),
                        "last_session": s.p.sessions[-1].isoformat(),
@@ -39,4 +39,10 @@ def build(out: Path):
 
 
 if __name__ == "__main__":
-    build(Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "dist" / "dashboard.html")
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("out", nargs="?", default=str(ROOT / "dashboard.html"))
+    ap.add_argument("--provider", default="fixture", choices=["fixture", "kite"],
+                    help="kite = your local Zerodha history. Keep that page private: do not publish it to GitHub Pages.")
+    a = ap.parse_args()
+    build(Path(a.out), a.provider)

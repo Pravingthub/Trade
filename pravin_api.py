@@ -447,9 +447,10 @@ class Service:
                          "missing_sessions": miss, "freshness": fr,
                          "live_recommendations_allowed": False,
                          "why_blocked": "simulated data" if self.p.data_mode.value == "simulated" else
+                                        "historical data, not a live feed" if self.p.data_mode.value == "historical" else
                                         ("stale feed" if fr["stale"] else None)})
         return _clean({"provider": self.p.name, "data_mode": self.p.data_mode.value,
-                       "demo": True, "checked_at": now, "instruments": rows})
+                       "demo": self.p.data_mode.value == "simulated", "checked_at": now, "instruments": rows})
 
 
 # ======================================================================
@@ -460,9 +461,21 @@ app = FastAPI(title="PRAVIN AI", version="0.1.0",
               description="Analysis only. AI recommends, the human executes. No order placement.")
 
 
+def make_provider(kind: str | None = None):
+    """PRAVIN_DATA_PROVIDER=fixture (default, simulated) or kite (local Zerodha history)."""
+    import os
+    kind = kind or os.environ.get("PRAVIN_DATA_PROVIDER", "fixture")
+    if kind == "kite":
+        from pravin_kite import StoreProvider
+        return StoreProvider()
+    if kind == "fixture":
+        return FixtureMarketDataProvider()
+    raise ValueError(f"unknown data provider {kind!r}")
+
+
 @lru_cache(maxsize=1)
 def svc() -> Service:
-    return Service(FixtureMarketDataProvider())
+    return Service(make_provider())
 
 
 @app.exception_handler(QuantError)
@@ -490,7 +503,7 @@ def health():
 @app.get("/api/v1/market/status")
 def market_status():
     s = svc()
-    return _clean({"provider": s.p.name, "data_mode": s.p.data_mode.value, "demo": True,
+    return _clean({"provider": s.p.name, "data_mode": s.p.data_mode.value, "demo": s.p.data_mode.value == "simulated",
                    "last_session_in_data": s.p.sessions[-1], "next_session": s.next_session(),
                    "calendar": s.cal.source})
 

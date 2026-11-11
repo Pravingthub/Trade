@@ -1,0 +1,22 @@
+date,type,name,source
+# type: holiday = exchange closed; special_session = full session on a weekend; muhurat = short session (excluded from CPR source periods)
+# Historical sessions are taken from Zerodha's own NIFTY 50 daily candles. This file matters for FUTURE dates.
+# Verify against NSE circulars each year (2026: NSE/CMTR/71775 and NSE/CMTR/72260).
+2026-01-15,holiday,Municipal Corporation Election (Maharashtra),NSE/CMTR/72260
+2026-01-26,holiday,Republic Day,NSE/CMTR/71775
+2026-02-01,special_session,Union Budget Sunday session,NSE/CMTR/72349
+2026-03-03,holiday,Holi,NSE/CMTR/71775
+2026-03-26,holiday,Shri Ram Navami,NSE/CMTR/71775
+2026-03-31,holiday,Shri Mahavir Jayanti,NSE/CMTR/71775
+2026-04-03,holiday,Good Friday,NSE/CMTR/71775
+2026-04-14,holiday,Dr. Baba Saheb Ambedkar Jayanti,NSE/CMTR/71775
+2026-05-01,holiday,Maharashtra Day,NSE/CMTR/71775
+2026-05-28,holiday,Bakri Id,NSE/CMTR/71775
+2026-06-26,holiday,Muharram,NSE/CMTR/71775
+2026-09-14,holiday,Ganesh Chaturthi,NSE/CMTR/71775
+2026-10-02,holiday,Mahatma Gandhi Jayanti,NSE/CMTR/71775
+2026-10-20,holiday,Dussehra,NSE/CMTR/71775
+2026-11-08,muhurat,Diwali Laxmi Pujan Muhurat trading,NSE/CMTR/71775
+2026-11-10,holiday,Diwali-Balipratipada,NSE/CMTR/71775
+2026-11-24,holiday,Prakash Gurpurb Sri Guru Nanak Dev,NSE/CMTR/71775
+2026-12-25,holiday,Christmas,NSE/CMTR/71775
