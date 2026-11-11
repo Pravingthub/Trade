@@ -214,12 +214,18 @@ def build(out: Path, provider: str = "fixture", news_db: Path | None = None, jou
     if news_db.exists():
         con = N.connect(news_db)
         news = [dict(r) for r in con.execute("SELECT publisher, title, link, impact, bias, reasons, affects, published_utc "
-                                             "FROM news ORDER BY COALESCE(published_utc, ingested_utc) DESC LIMIT 12")]
+                                             "FROM news ORDER BY COALESCE(published_utc, ingested_utc) DESC LIMIT 40")]
         news_health = N.health(con)
     last_fetch = None
     if news_db.exists():
         row = N.connect(news_db).execute("SELECT MAX(at_utc) FROM fetches WHERE ok=1").fetchone()
         last_fetch = row[0] if row else None
+    import pravin_marketread as MRD
+    market_read = MRD.read(__import__("pravin_global").load(), news, brief["events"], now)
+    for e in instruments:
+        if e.get("plan"):
+            e["plan"]["context"].insert(0, f"Overnight lean: {market_read['lean']} ({market_read['score']:+d}). "
+                                           + market_read["how_to_use"])
     data = {
         "status": {"provider": s.p.name, "data_mode": s.p.data_mode.value, "next_session": s.next_session().isoformat(),
                    "last_session": s.p.sessions[-1].isoformat(), "calendar": s.cal.source,
@@ -227,7 +233,7 @@ def build(out: Path, provider: str = "fixture", news_db: Path | None = None, jou
         "brief": {k: brief[k] for k in ("for_session", "demo", "completeness", "events", "event_risk_today", "global",
                                          "announcement_risk", "risk", "disclaimer", "calendar")},
         "risk": PC.policy_summary(policy, guard["trades_opened_today"]),
-        "global": __import__("pravin_global").load(),
+        "global": __import__("pravin_global").load(), "market_read": market_read,
         "screen": __import__("pravin_screen").load() if s.p.data_mode.value != "simulated" else None,
         "news": news, "news_health": {**news_health, "last_fetch_utc": last_fetch},
         "journal": J.review(jcon, as_of - timedelta(days=30)), "guard": guard,

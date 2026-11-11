@@ -130,7 +130,11 @@ tr:last-child td{border-bottom:0}
 .feed li:last-child{border-bottom:0}
 .imp{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;padding:1px 5px;border-radius:3px;height:fit-content}
 .imp.high{background:var(--bear-t);color:var(--bear)} .imp.medium{background:var(--warn-t);color:var(--warn)} .imp.low{background:var(--panel2);color:var(--dim)}
-.feed .t{font-size:12.5px;text-decoration:none} .feed a.t:hover{text-decoration:underline}
+.feed .t{font-size:12.5px;text-decoration:none;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mr{padding:14px 16px}.mr .lean{font-size:22px;font-weight:600;letter-spacing:.03em}
+.lean.bullish{color:var(--bull)}.lean.bearish{color:var(--bear)}.lean.neutral{color:var(--ink)}
+.mr .cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:10px}
+@media (max-width:1000px){.mr .cols{grid-template-columns:1fr}} .feed a.t:hover{text-decoration:underline}
 .feed .m{grid-column:2;font-size:11px;color:var(--dim)}
 .feed li.empty{display:block}
 .empty{color:var(--dim);font-size:12.5px;padding:6px 0;margin:0}
@@ -229,9 +233,10 @@ footer b{color:var(--muted);font-weight:500}
 </div></section>
 
 <section class="tab" data-tab="market" hidden><div class="desk">
+  <section class="p c12" id="mread" aria-label="Market read"></section>
   <section class="p c4"><div class="ph"><h2>Global overnight</h2><span class="aside" id="glaside"></span></div><div class="pb" id="global"></div></section>
   <section class="p c5"><div class="ph"><h2>Official announcements</h2>
-    <div class="seg" id="nf"><button data-f="all" aria-pressed="true">All</button><button data-f="notable" aria-pressed="false">Notable</button><button data-f="bank" aria-pressed="false">Banking</button></div></div>
+    <div class="seg" id="nf"><button data-f="notable" aria-pressed="true">Notable</button><button data-f="all" aria-pressed="false">All</button><button data-f="bank" aria-pressed="false">Banking</button></div></div>
     <div class="pb"><p class="sum" id="newssum"></p><div class="legend"><span class="bias supportive">supportive</span><span class="bias adverse">adverse</span><span class="bias check">high impact · read</span><span class="bias neutral">relevant</span><span class="bias routine">routine</span></div>
     <ul class="feed" id="news"></ul><p class="note" id="newsaside"></p></div></section>
   <section class="p c3"><div class="ph"><h2>Events</h2><span class="aside">events.csv</span></div><div class="pb"><ul class="feed" id="events"></ul></div></section>
@@ -255,7 +260,7 @@ footer b{color:var(--muted);font-weight:500}
 
 <script>
 const DATA = __DATA__;
-const S = { i: Math.max(0, DATA.instruments.findIndex(x => x.verdict)), p: "day", nf: "all" };
+const S = { i: Math.max(0, DATA.instruments.findIndex(x => x.verdict)), p: "day", nf: "notable" };
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const f = (v, d = 2) => v == null || Number.isNaN(+v) ? "—" : Number(v).toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -379,6 +384,7 @@ function todayctx() {
   const gt = g && g.items && g.items.length ? `<span class="tag ${g.tone === "risk-on" ? "bull" : g.tone === "risk-off" || g.tone === "shock" ? "bear" : "neutral"}">${esc(g.tone)}</span>` : "not fetched";
   $("todayctx").innerHTML =
     line("Data", esc(x.provenance.status.replace("_", " ").toLowerCase()) + " · " + esc(x.provenance.health.toLowerCase()), x.provenance.status === "LIVE_VERIFIED" ? "bull" : "warn") +
+    line("Overnight lean", DATA.market_read ? `<span class="tag ${DATA.market_read.lean === "bullish" ? "bull" : DATA.market_read.lean === "bearish" ? "bear" : "neutral"}">${DATA.market_read.lean} (${DATA.market_read.score >= 0 ? "+" : ""}${DATA.market_read.score})</span> <a href="#market">why</a>` : "—") +
     line("Global overnight", gt) +
     line("Events", ev, b.event_risk_today ? "bear" : "") +
     (() => {
@@ -393,8 +399,22 @@ function todayctx() {
     })() +
     line("Risk left today", `${r.trades_left}/${r.max_trades} trades · ₹${f(r.per_trade, 0)} each`) +
     line("Stop for the day", `₹${f(r.daily_stop, 0)} or ${r.loss_lockout} losses in a row`) +
-    (p ? `<ul class="ctx">${p.context.slice(0, 2).map(t => `<li>${esc(t)}</li>`).join("")}</ul>` : "") +
+    (p ? `<ul class="ctx">${p.context.filter(t => !t.startsWith("Overnight lean")).slice(0, 2).map(t => `<li>${esc(t)}</li>`).join("")}</ul>` : "") +
     `<p class="note">No new trades after 14:30 · flat by 15:15 · log the plan in the journal before entering.</p>`;
+}
+
+function mread() {
+  const m = DATA.market_read;
+  if (!m) { $("mread").innerHTML = ""; return; }
+  const list = (items, empty) => items.length ? `<ul class="ctx" style="margin:4px 0 0">${items.join("")}</ul>` : `<p class="empty">${empty}</p>`;
+  $("mread").innerHTML = `<div class="mr"><div class="lbl">Market read · global + announcements + events</div>
+    <div class="lean ${m.lean}">Overnight lean: ${m.lean.toUpperCase()} <span class="num" style="font-size:15px;color:var(--muted)">(${m.score >= 0 ? "+" : ""}${m.score})</span></div>
+    <p style="margin:6px 0 0;font-size:13.5px">${esc(m.how_to_use)}</p>
+    <div class="cols">
+      <div><div class="lbl">What drove it</div>${list(m.drivers.map(d => `<li><span class="${d.points > 0 ? "bull" : "bear"} num">${d.points > 0 ? "+" : ""}${d.points}</span> ${esc(d.text)}</li>`), "Nothing pushed either way.")}</div>
+      <div><div class="lbl">Cautions</div>${list(m.cautions.map(c => `<li>${esc(c)}</li>`), "None.")}</div>
+      <div><div class="lbl">How it is scored</div><p class="note" style="margin:4px 0 0">S&amp;P 500 counts 2, other global markets 1 each (only fresh values); high-impact announcements ±3, medium ±1; +3 or more = bullish, −3 or less = bearish. ${esc(m.method)}.</p></div>
+    </div></div>`;
 }
 
 function globalPanel() {
@@ -575,7 +595,7 @@ function feeds() {
     + " Colours come from transparent keyword rules in pravin_news.py, not a forecast.";
   $("news").innerHTML = n.length ? n.map(a => `<li class="b-${a.bias || "routine"}"><span class="bias ${a.bias || "routine"}">${BL[a.bias] || "routine"}</span><a class="t" href="${esc(a.link)}" target="_blank" rel="noopener">${esc(a.title)}</a>
     <span class="m">${esc(a.publisher)} · ${a.published_utc ? new Date(a.published_utc).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) + " IST" : ""} · ${esc(a.impact)} impact · ${esc(a.reasons)}</span></li>`).join("")
-    : `<li class="empty">${all.length ? "Nothing in this filter. All recent items are routine." : "No announcements stored. Run <span class='mono'>pravin_news.py fetch</span>."}</li>`;
+    : `<li class="empty">${all.length ? `Nothing notable: all ${all.length} recent items are routine (orders, auctions, notices). Tap <b>All</b> to see them.` : "No announcements stored. Run <span class='mono'>pravin_news.py fetch</span>."}</li>`;
   const ev = DATA.brief.events, cal = DATA.brief.calendar;
   const head = cal.checked ? `<li class="empty bull">Calendar checked (${esc(cal.detail)}).</li>`
     : `<li class="empty bear">Calendar NOT checked: ${esc(cal.detail)}. Event risk is unknown, so the desk will not trade. Review events.csv and set the "reviewed:" date.</li>`;
@@ -632,7 +652,7 @@ $("tabs").addEventListener("click", e => { const b = e.target.closest("button");
 addEventListener("hashchange", () => showTab(location.hash.slice(1)));
 document.addEventListener("click", e => { const a = e.target.closest('a[href^="#"]'); if (a && TABS.includes(a.getAttribute("href").slice(1))) { e.preventDefault(); showTab(a.getAttribute("href").slice(1)); } });
 
-function render() { topbar(); tape(); if (!cur().verdict) return; plan(); keylv(); todayctx(); stocks(); globalPanel(); watch(); verdict(); regime(); cands(); posture(); ladder(); chart(); risk(); feeds(); options(); mtf(); foot(); }
+function render() { topbar(); tape(); if (!cur().verdict) return; plan(); keylv(); todayctx(); stocks(); mread(); globalPanel(); watch(); verdict(); regime(); cands(); posture(); ladder(); chart(); risk(); feeds(); options(); mtf(); foot(); }
 $("period").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S.p = b.dataset.p; [...$("period").children].forEach(x => x.setAttribute("aria-pressed", String(x === b))); ladder(); });
 $("nf").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S.nf = b.dataset.f; [...$("nf").children].forEach(x => x.setAttribute("aria-pressed", String(x === b))); feeds(); });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);

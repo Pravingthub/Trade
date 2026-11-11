@@ -62,7 +62,8 @@ RULES = [
     (r"inflation|cpi\b|wpi\b|gdp|index of industrial production|\biip\b|current account|forex reserves", 4, "macro data", "NIFTY50", None),
     (r"foreign portfolio|\bfpi\b|\bfii\b|external commercial", 3, "foreign flows", "NIFTY50", None),
     (r"circuit|surveillance|ban period|\basm\b|\bgsm\b", 3, "market surveillance", "NIFTY50", None),
-    (r"penalty|cancels certificate of registration|directions under section 35a|co-operative bank|nbfc|supersession", -4,
+    (r"penalty|cancels certificate of registration|directions under section 35a|co-operative bank|nbfc|supersession|"
+     r"recovery certificate|release order|attachment|adjudication order|settlement order|in the matter of", -4,
      "routine enforcement", "", None),
     (r"auction of (state )?government|government of india dated securit|state government securities|treasury bills|"
      r"money market operations|\bsgb\b|sovereign gold", -3, "routine operations", "", None),

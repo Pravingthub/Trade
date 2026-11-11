@@ -120,3 +120,9 @@ def test_heavyweight_results_are_high_impact():
     sc = N.score("HDFC Bank Limited - Financial Results for the quarter ended September 30, 2026", "")
     assert sc["impact"] == "high" and "BANKNIFTY" in sc["affects"] and sc["bias"] == "check"
     assert N.score("Small Co Ltd - Financial Results for the quarter", "")["impact"] == "low"
+
+
+def test_sebi_enforcement_orders_are_routine():
+    t = ("Cancellation of Recovery Certificate No. 9290 of 2026 issued against A (PAN: X) and B jointly and severally "
+         "in the matter of trading activity in the scrip of ANI Integrated Services Limited")
+    assert N.score(t, "")["bias"] == "routine"

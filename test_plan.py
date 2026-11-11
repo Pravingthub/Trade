@@ -19,7 +19,8 @@ def test_plan_has_exact_numbers_and_demo_label(tmp_path):
     longs = [c for c in p["cases"] if c["direction"] == "LONG"]
     assert longs and "5-minute candle closes above" in longs[0]["trigger"] and longs[0]["stop"].startswith("index ")
     assert any(c["direction"] == "WAIT" for c in p["cases"])
-    assert "Narrow CPR" in p["context"][0] and "× the usual range" in p["context"][0]
+    assert any("Narrow CPR" in c and "× the usual range" in c for c in p["context"])
+    assert p["context"][0].startswith("Overnight lean:")
     txt = PL.to_text(p)
     assert "If it opens above" in txt and "R:R" in txt
 
