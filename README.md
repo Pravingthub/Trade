@@ -1,4 +1,4 @@
-# PRAVIN AI
+# Vriddhi
 
 Personal Indian-market analysis assistant built around CPR and pivot points.
 **Analysis only: nothing in this codebase can place, modify or cancel an order.**

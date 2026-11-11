@@ -1,4 +1,4 @@
-"""Run PRAVIN AI automatically on trading days (macOS launchd).
+"""Run Vriddhi automatically on trading days (macOS launchd).
 
 Jobs (IST, Monday to Friday, skipped on NSE holidays from nse_holidays.csv):
     07:45  news     fetch official announcements (again every 30 min during market hours)
@@ -15,7 +15,7 @@ Jobs (IST, Monday to Friday, skipped on NSE holidays from nse_holidays.csv):
 Your Mac must be awake. To wake it each weekday morning:
     sudo pmset repeat wakeorpoweron MTWRF 07:40:00
 Login itself cannot be automated: Zerodha requires you to log in yourself, and
-PRAVIN AI never stores your password or TOTP secret.
+Vriddhi never stores your password or TOTP secret.
 """
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ from pravin_quant import IST, ExchangeCalendar
 
 ROOT = Path(__file__).resolve().parent
 AGENTS = Path.home() / "Library" / "LaunchAgents"
-LABEL = "com.pravinai.{}"
+LABEL = "com.vriddhi.{}"
 
 JOBS = {
     "news": [(7, 45)] + [(h, m) for h in range(9, 16) for m in (0, 30) if (h, m) <= (15, 30)],
@@ -101,7 +101,7 @@ def run(job: str, provider: str, today: date | None = None, runner=None, notify=
     needs_kite = provider == "kite"
     if job == "login":
         if needs_kite and not has_token:
-            notify("PRAVIN AI: log in to Kite for today. On your Mac run: python pravin_kite.py login")
+            notify("Vriddhi: log in to Kite for today. On your Mac run: python pravin_kite.py login")
             return "reminder sent"
         return "already logged in"
     if job == "news":
@@ -110,11 +110,11 @@ def run(job: str, provider: str, today: date | None = None, runner=None, notify=
         if needs_kite and has_token:
             runner(["pravin_kite.py", "fetch", "--years", "0.05"])
         elif needs_kite:
-            notify("PRAVIN AI: not logged in to Kite, so the brief uses yesterday's stored data and may be incomplete.")
+            notify("Vriddhi: not logged in to Kite, so the brief uses yesterday's stored data and may be incomplete.")
         return f"exit {runner(['pravin_brief.py', '--provider', provider, '--telegram'])}"
     if job == "live":
         if needs_kite and not has_token:
-            notify("PRAVIN AI: live alerts NOT started because you are not logged in to Kite today.")
+            notify("Vriddhi: live alerts NOT started because you are not logged in to Kite today.")
             return "not started: no Kite login"
         if not needs_kite:
             return "not started: live alerts need Kite data"
@@ -144,7 +144,7 @@ def main(argv=None):
         print("Logs: logs/<job>.log. Keep the Mac awake on weekday mornings (see --help).")
     elif a.cmd == "uninstall":
         uninstall()
-        print("removed all PRAVIN AI jobs")
+        print("removed all Vriddhi jobs")
     elif a.cmd == "status":
         out = subprocess.run(["launchctl", "list"], capture_output=True, text=True).stdout
         for job in JOBS:

@@ -1,4 +1,4 @@
-"""Morning brief: everything PRAVIN AI knows before 09:15, in one page.
+"""Morning brief: everything Vriddhi knows before 09:15, in one page.
 
 Sections: data completeness, events, global markets, and for each index the
 daily/weekly/monthly CPR, pivots, regime, timeframe alignment, opening
@@ -271,7 +271,7 @@ def to_markdown(b: dict) -> str:
 def to_telegram(b: dict) -> str:
     """Compact plain-text version for a phone."""
     day = datetime.fromisoformat(b["for_session"]).strftime("%a %d %b")
-    L = [f"PRAVIN AI · brief for {day}" + (" · DEMO DATA" if b["demo"] else "")]
+    L = [f"Vriddhi · brief for {day}" + (" · DEMO DATA" if b["demo"] else "")]
     missing = [c["input"] for c in b["completeness"] if c["status"] in ("missing", "stale", "not_configured")]
     if missing:
         L.append("Missing: " + ", ".join(missing))

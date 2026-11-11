@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS trades (
     side TEXT NOT NULL CHECK (side IN ('long', 'short')),
     setup TEXT NOT NULL,                 -- strategy id, or 'discretionary'
     setup_validated INTEGER NOT NULL,    -- 1 if the setup had passed backtesting when opened
-    from_alert INTEGER NOT NULL,         -- 1 if opened from a PRAVIN AI alert
+    from_alert INTEGER NOT NULL,         -- 1 if opened from a Vriddhi alert
     planned_entry REAL NOT NULL, stop REAL NOT NULL, target REAL NOT NULL, qty INTEGER NOT NULL,
     planned_risk REAL NOT NULL,          -- rupees lost if the stop is honoured exactly
     guard_ok INTEGER NOT NULL,           -- 1 if the risk guard allowed a new trade at open time

@@ -1,4 +1,4 @@
-"""Build the PRAVIN AI analyst desk (a single static HTML page).
+"""Build the Vriddhi analyst desk (a single static HTML page).
 
 Every number, verdict and signal is computed here by the Python engine and
 embedded as JSON; the page only displays it.

@@ -30,7 +30,7 @@ from pravin_quant import IST
 ROOT = Path(__file__).resolve().parent
 DB_PATH = ROOT / "news.db"
 SOURCES = ROOT / "news_sources.csv"
-UA = "PRAVIN-AI personal research (RSS reader)"
+UA = "Vriddhi personal research (RSS reader)"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS news (

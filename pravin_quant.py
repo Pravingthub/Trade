@@ -1,4 +1,4 @@
-"""PRAVIN AI quantitative engine (single module).
+"""Vriddhi quantitative engine (single module).
 
 Deterministic calculations: CPR, pivots, period aggregation, indicators,
 data-quality checks and risk controls. No network, no AI, no randomness.
@@ -591,7 +591,7 @@ def percentile_rank(history: pd.Series, value: float) -> float:
 # overtrading/revenge trading, ignored stops, and oversized option risk.
 #
 # Nothing here can place or block an order in the broker. It decides whether
-# PRAVIN AI is allowed to *recommend* another trade, and how big it may be.
+# Vriddhi is allowed to *recommend* another trade, and how big it may be.
 Direction = Literal["long", "short"]
 
 

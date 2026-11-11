@@ -7,12 +7,12 @@ import pravin_schedule as S
 def test_plists_are_valid_weekday_only_and_ist(tmp_path):
     paths = S.install("kite", agents=tmp_path, python="/usr/bin/python3", load=False)
     assert len(paths) == len(S.JOBS)
-    brief = plistlib.loads((tmp_path / "com.pravinai.brief.plist").read_bytes())
+    brief = plistlib.loads((tmp_path / "com.vriddhi.brief.plist").read_bytes())
     assert brief["ProgramArguments"][-4:] == ["run", "brief", "--provider", "kite"]
     assert {d["Weekday"] for d in brief["StartCalendarInterval"]} == {1, 2, 3, 4, 5}
     assert all((d["Hour"], d["Minute"]) == (8, 50) for d in brief["StartCalendarInterval"])
     assert brief["EnvironmentVariables"]["TZ"] == "Asia/Kolkata"
-    news = plistlib.loads((tmp_path / "com.pravinai.news.plist").read_bytes())
+    news = plistlib.loads((tmp_path / "com.vriddhi.news.plist").read_bytes())
     assert len(news["StartCalendarInterval"]) == 5 * (1 + 14)     # 07:45 + every 30 min 09:00-15:30
 
 

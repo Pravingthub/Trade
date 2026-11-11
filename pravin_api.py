@@ -1,4 +1,4 @@
-"""PRAVIN AI API (single module): provider interface, DEMO data provider,
+"""Vriddhi API (single module): provider interface, DEMO data provider,
 service layer and FastAPI routes. Read-only analytics; no order routes.
 """
 from __future__ import annotations
@@ -456,8 +456,8 @@ class Service:
 # ======================================================================
 # main
 # ======================================================================
-# PRAVIN AI API. Read-only analytics. There are NO order routes, by design.
-app = FastAPI(title="PRAVIN AI", version="0.1.0",
+# Vriddhi API. Read-only analytics. There are NO order routes, by design.
+app = FastAPI(title="Vriddhi", version="0.1.0",
               description="Analysis only. AI recommends, the human executes. No order placement.")
 
 

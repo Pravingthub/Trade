@@ -1,6 +1,6 @@
 # Formulas and conventions
 
-Every number PRAVIN AI shows comes from these definitions. Tests: `tests/unit`.
+Every number Vriddhi shows comes from these definitions. Tests: `tests/unit`.
 
 ## Source period
 Levels for trading date D use the previous **completed** period only:
