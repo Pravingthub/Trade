@@ -7,6 +7,7 @@ Jobs (IST, Monday to Friday, skipped on NSE holidays from nse_holidays.csv):
     08:50  brief    morning brief and TODAY'S PLAN (+ Telegram)
     09:10  live     live watcher until 15:30 (paper-trades alerts into the journal)
     16:00  review   journal review of the day (+ Telegram)
+    18:30  screen   screen all NSE stocks for tomorrow's shortlist
 
     python pravin_schedule.py install --provider kite     # writes and loads the launchd jobs
     python pravin_schedule.py status
@@ -40,6 +41,7 @@ JOBS = {
     "brief": [(8, 50)],
     "live": [(9, 10)],
     "review": [(16, 0)],
+    "screen": [(18, 30)],
 }
 
 
@@ -124,6 +126,10 @@ def run(job: str, provider: str, today: date | None = None, runner=None, notify=
         if not needs_kite:
             return "not started: live alerts need Kite data"
         return f"exit {runner(['pravin_live.py', '--paper'])}"
+    if job == "screen":
+        if needs_kite and not has_token:
+            return "not run: no Kite login today"
+        return f"exit {runner(['pravin_screen.py'])}"
     if job == "review":
         import pravin_journal as J
         rv = J.review(J.connect(), today)

@@ -59,5 +59,12 @@
   "stance": {
     "max_changes_per_day": 4,
     "min_minutes_between_changes": 30
+  },
+  "screen": {
+    "_note": "Daily stock screen over ALL NSE stocks. Liquidity filters protect you from untradable names.",
+    "min_price": 100,
+    "min_median_turnover_cr": 50,
+    "top_n": 5,
+    "history_days": 300
   }
 }

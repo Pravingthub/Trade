@@ -75,3 +75,13 @@ def test_watch_and_behaviour_present_for_indices(tmp_path):
         assert all(z["high"] < i["brief"]["last_close"] for z in w["below"])
         assert [z["mid"] for z in w["above"]] == sorted(z["mid"] for z in w["above"])     # nearest first
         assert i["behaviour"]["insights"] and "Not a backtest" in i["behaviour"]["note"]
+
+
+def test_index_plans_cross_check_each_other(tmp_path):
+    _, d = build(tmp_path)
+    n = next(i for i in d["instruments"] if i["meta"]["id"] == "NIFTY50")
+    b = next(i for i in d["instruments"] if i["meta"]["id"] == "BANKNIFTY")
+    assert n["plan"]["cross_check"]["other"] == "NIFTY BANK" and b["plan"]["cross_check"]["other"] == "NIFTY 50"
+    if n["brief"]["cpr"]["day"]["close_position"] != b["brief"]["cpr"]["day"]["close_position"]:
+        assert "disagree" in n["plan"]["cross_check"]["text"] or "inside" in n["plan"]["cross_check"]["text"]
+    assert d["screen"] is None                               # never shown on demo prices

@@ -215,6 +215,7 @@ footer b{color:var(--muted);font-weight:500}
     <section class="p"><div class="ph"><h2>Levels that matter today</h2><span class="aside">nearest first</span></div><div class="pb" id="keylv"></div></section>
     <section class="p"><div class="ph"><h2>Before you trade</h2></div><div class="pb" id="todayctx"></div></section>
   </div>
+  <section class="p c12"><div class="ph"><h2>Stocks to watch</h2><span class="aside" id="staside"></span></div><div class="pb scroll" id="stocks"></div></section>
 </div></section>
 
 <section class="tab" data-tab="levels" hidden><div class="desk">
@@ -338,6 +339,25 @@ function watch() {
     </div><p class="note">Zones merge daily (D), weekly (W) and monthly (M) levels lying within ${f(w.tolerance_points, 0)} points of each other. Distance is to the nearest edge (hover for the midpoint). More dots = more timeframes agreeing. Nearest first.</p>`;
 }
 
+function stocks() {
+  const sc = DATA.screen;
+  if (!sc) {
+    $("staside").textContent = "needs Zerodha";
+    $("stocks").innerHTML = `<p class="empty">Every evening Vriddhi screens all NSE stocks, keeps only properly tradable ones (price and turnover filters), and picks the 3–5 best for the next day, each with a plan sized to your risk. This needs Zerodha data, so it starts once Kite Connect is set up.</p>`;
+    return;
+  }
+  $("staside").textContent = `${sc.tradable} tradable of ${sc.universe} NSE stocks · built ${String(sc.built).replace("T", " ")}`;
+  $("stocks").innerHTML = `<table><thead><tr><th>Stock</th><th>Lean</th><th>Why</th><th>Long trigger · stop · target</th><th>Short trigger · stop · target</th><th>Size</th><th>Options</th></tr></thead><tbody>${sc.top.map(t => `<tr>
+    <td><b>${esc(t.symbol)}</b><div class="src">${f(t.close)} · ₹${f(t.turnover_cr, 0)} cr/day</div>${t.event_risk ? '<span class="tag bear">results</span>' : ""}</td>
+    <td><span class="tag ${t.lean === "long" ? "bull" : t.lean === "short" ? "bear" : "neutral"}">${esc(t.lean)}</span></td>
+    <td style="font-size:12px">${t.reasons.map(esc).join("<br>")}</td>
+    <td class="num" style="font-size:12px">${esc(t.plan.long.trigger)}<br>${f(t.plan.long.stop)} · ${f(t.plan.long.target)}</td>
+    <td class="num" style="font-size:12px">${esc(t.plan.short.trigger)}<br>${f(t.plan.short.stop)} · ${f(t.plan.short.target)}</td>
+    <td class="num">${t.plan.long.shares} sh<div class="src">₹${f(t.plan.long.share_risk, 0)} risk</div></td>
+    <td style="font-size:12px">${esc(t.plan.long.options)}</td></tr>`).join("")}</tbody></table>
+    <p class="note">Same rules as the indices: trade only on the trigger, one shared limit of ${DATA.risk.max_trades} trades and ₹${f(DATA.risk.daily_stop, 0)} daily stop across indices and stocks. Paper-trade only until the setups are validated on a basket of stocks.</p>`;
+}
+
 function keylv() {
   const x = cur(), w = x.watch, c = x.cpr.day.levels, close = x.brief.last_close, pd = x.brief.previous_day;
   const row = (cls, name, lo, hi, dist, note) => `<div class="kl ${cls}"><span class="num">${f(lo, 0)}${hi - lo >= 1 ? "–" + f(hi, 0) : ""}</span>
@@ -390,6 +410,7 @@ function plan() {
   $("plan").innerHTML = `<div class="top"><div><div class="lbl">Today's plan · ${esc(p.symbol)}</div><div class="callp ${kind}">${esc(p.call)}</div></div>
       <div class="money">${esc(p.money)}</div></div>
     <div class="stance">Right now: <span class="st ${p.stance}">${p.stance.replace(/_/g, " ")}</span> <span class="note" style="margin:0">${esc(p.stance_reason)}</span></div>
+    ${p.cross_check ? `<div class="stance">Cross-check: <span class="tag ${p.cross_check.agrees ? "bull" : p.cross_check.other_position === "inside" ? "neutral" : "warn"}">${esc(p.cross_check.other)} ${esc(p.cross_check.other_position)} its CPR</span> <span class="note" style="margin:0">${esc(p.cross_check.text)}</span></div>` : ""}
     <div class="cases">${p.cases.map(c => `<div class="case"><h3>If ${esc(c.if)}<span class="dir ${c.direction}">${c.direction}</span></h3><dl>
       ${row("Trigger", c.trigger)}${row("Entry", c.entry)}${row("Stop", c.stop)}${row("Target", c.target)}
       ${c.reward_risk != null && c.direction !== "WAIT" ? `<dt>R:R</dt><dd class="num">1 : ${f(c.reward_risk)}</dd>` : ""}
@@ -601,7 +622,7 @@ $("tabs").addEventListener("click", e => { const b = e.target.closest("button");
 addEventListener("hashchange", () => showTab(location.hash.slice(1)));
 document.addEventListener("click", e => { const a = e.target.closest('a[href^="#"]'); if (a && TABS.includes(a.getAttribute("href").slice(1))) { e.preventDefault(); showTab(a.getAttribute("href").slice(1)); } });
 
-function render() { topbar(); tape(); if (!cur().verdict) return; plan(); keylv(); todayctx(); globalPanel(); watch(); verdict(); regime(); cands(); posture(); ladder(); chart(); risk(); feeds(); options(); mtf(); foot(); }
+function render() { topbar(); tape(); if (!cur().verdict) return; plan(); keylv(); todayctx(); stocks(); globalPanel(); watch(); verdict(); regime(); cands(); posture(); ladder(); chart(); risk(); feeds(); options(); mtf(); foot(); }
 $("period").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S.p = b.dataset.p; [...$("period").children].forEach(x => x.setAttribute("aria-pressed", String(x === b))); ladder(); });
 $("nf").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S.nf = b.dataset.f; [...$("nf").children].forEach(x => x.setAttribute("aria-pressed", String(x === b))); feeds(); });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);

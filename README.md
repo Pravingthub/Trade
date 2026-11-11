@@ -18,6 +18,7 @@ You decide and you execute in Kite.
 | Option maths | `pravin_options.py` | Implied volatility, Greeks, premium after time decay, break-even, liquidity checks, lot sizing for each strike |
 | Today's plan | `pravin_plan.py` | One instruction per index at the top of the desk: what to do on each kind of open, trigger, stop, target, size, cancel and exit rules; paper-only until a setup proves itself |
 | Stance engine | `pravin_stance.py` | Changes the stance during the day on rules (open, level breaks, high-impact news and heavyweight results, crude/gold/USD-INR/VIX moves, your risk limits), each change with its reason, capped to prevent flip-flopping |
+| Stock screen | `pravin_screen.py` | Every evening: all NSE stocks → tradable ones (price and turnover filters) → the best 3–5 for tomorrow, each with triggers and a size that fits your risk; stock options only when one lot fits |
 | Global markets | `pravin_global.py` | Overnight S&P 500, Nasdaq, Nikkei, US VIX, US 10-year, Brent, USD/INR from FRED (free, official) |
 | Automation | `pravin_schedule.py` | Runs news, login reminder, brief, live alerts and the evening review on trading days (macOS) |
 | API and dashboard | `pravin_api.py`, `build_dashboard.py` | Web API and the CPR dashboard page |
@@ -43,7 +44,7 @@ cd Trade                                   # your project folder
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
 cp env.example .env                        # then open .env and fill in your keys
-pytest -q                                  # should say 270 passed
+pytest -q                                  # should say 276 passed
 ```
 
 1. **Kite Connect**: create an app at developers.kite.trade (paid "Connect" plan; check the current price there).

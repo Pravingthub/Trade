@@ -196,6 +196,20 @@ def build(out: Path, provider: str = "fixture", news_db: Path | None = None, jou
             entry["plan"] = PL.build({**entry, "cpr": entry["cpr"]}, brief, GL.load(), guard,
                                      PC.policy_summary(policy, guard["trades_opened_today"]), now)
         instruments.append(entry)
+    # NIFTY <-> BANKNIFTY cross-check: each index plan states what the other says.
+    by = {e["meta"]["id"]: e for e in instruments}
+    for a, b2 in (("NIFTY50", "BANKNIFTY"), ("BANKNIFTY", "NIFTY50")):
+        if by.get(a, {}).get("plan") and by.get(b2, {}).get("brief") and not by[b2]["brief"].get("error"):
+            pos = by[b2]["brief"]["cpr"]["day"]["close_position"]
+            other = by[b2]["meta"]["symbol"]
+            txt = {"above": f"{other} closed above its CPR: confirms longs here, argues against shorts.",
+                   "below": f"{other} closed below its CPR: confirms shorts here, argues against longs.",
+                   "inside": f"{other} closed inside its CPR: no confirmation either way."}[pos]
+            mine = by[a]["brief"]["cpr"]["day"]["close_position"]
+            agree = pos == mine and pos != "inside"
+            by[a]["plan"]["cross_check"] = {"other": other, "other_position": pos, "agrees": agree,
+                                            "text": txt + ("" if agree or "inside" in (pos, mine) else
+                                                           " The two indices disagree today: a move carried by one sector is less reliable.")}
     news, news_health = [], {"never_fetched": True}
     if news_db.exists():
         con = N.connect(news_db)
@@ -214,6 +228,7 @@ def build(out: Path, provider: str = "fixture", news_db: Path | None = None, jou
                                          "announcement_risk", "risk", "disclaimer", "calendar")},
         "risk": PC.policy_summary(policy, guard["trades_opened_today"]),
         "global": __import__("pravin_global").load(),
+        "screen": __import__("pravin_screen").load() if s.p.data_mode.value != "simulated" else None,
         "news": news, "news_health": {**news_health, "last_fetch_utc": last_fetch},
         "journal": J.review(jcon, as_of - timedelta(days=30)), "guard": guard,
         "instruments": instruments, "health": s.data_health(),
