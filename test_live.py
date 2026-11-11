@@ -125,3 +125,20 @@ def test_live_module_cannot_place_orders():
     src = open(L.__file__).read()
     for word in ("place_order", "modify_order", "cancel_order", "place_gtt"):
         assert word not in src
+
+
+def test_alerted_setup_is_paper_traded_on_the_next_bar(watcher, tmp_path):
+    import pravin_journal as J
+    con = J.connect(tmp_path / "j.db")
+    watcher.paper = J.PaperBook(con, watcher.guard.policy)
+    watcher.guard_fn = lambda now: J.guard_for(con, now, watcher.guard.policy, "paper")
+    watcher.ctx.width_pct_rank = 5
+    watcher.validated = {"CPR-NARROW-OPEN"}
+    watcher.lot_size = 1                                     # small so one lot fits the risk budget
+    alerts = feed(watcher, narrow_long_prices(watcher))
+    setup = [a for a in alerts if a.kind == "setup"][0]
+    assert "Paper trade queued" in setup.text
+    papers = [a for a in alerts if a.kind == "paper"]
+    assert papers and "opened long" in papers[0].text
+    t = con.execute("SELECT * FROM trades").fetchone()
+    assert t["setup"] == "CPR-NARROW-OPEN" and t["from_alert"] == 1 and t["entry"] == narrow_long_prices(watcher)[4]

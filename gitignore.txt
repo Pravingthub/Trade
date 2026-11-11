@@ -3,10 +3,13 @@
 .env.*
 .kite_token
 .telegram_sent
-# your market data and results stay on your computer
+# your market data, journal and results stay on your computer
 data/
 results/
 reports/
+logs/
+journal.db
+news.db
 dashboard.html
 # python
 __pycache__/

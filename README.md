@@ -13,6 +13,10 @@ You decide and you execute in Kite.
 | Backtester | `pravin_backtest.py` | Tests 4 CPR setups with Zerodha charges, slippage, out-of-sample and walk-forward checks |
 | Morning brief | `pravin_brief.py` | Pre-market page: CPR/pivots for day, week and month, scenarios, events, validated setups, risk budget; optional AI summary and Telegram |
 | Live alerts | `pravin_live.py` | Watches the market from Zerodha's live feed; alerts on level breaks and validated setups; pauses when data goes stale |
+| Trade journal | `pravin_journal.py` | Logs every paper or real trade with its plan; review shows late stop exits, off-plan trades, trades against the risk guard, overtrading days |
+| Official announcements | `pravin_news.py` | RBI, SEBI and BSE feeds (NSE once you add the links), scored for impact, shown in the brief |
+| Option maths | `pravin_options.py` | Implied volatility, Greeks, premium after time decay, break-even, liquidity checks, lot sizing for each strike |
+| Automation | `pravin_schedule.py` | Runs news, login reminder, brief, live alerts and the evening review on trading days (macOS) |
 | API and dashboard | `pravin_api.py`, `build_dashboard.py` | Web API and the CPR dashboard page |
 
 ## One-time setup (your Mac)
@@ -22,7 +26,7 @@ cd Trade                                   # your project folder
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
 cp env.example .env                        # then open .env and fill in your keys
-pytest -q                                  # should say 142 passed
+pytest -q                                  # should say 183 passed
 ```
 
 1. **Kite Connect**: create an app at developers.kite.trade (paid "Connect" plan; check the current price there).
@@ -40,6 +44,21 @@ pytest -q                                  # should say 142 passed
    ```
    Results go to `results/`. Only setups marked `candidate_for_paper_trading` are allowed to send live setup alerts.
 
+## Works today without Zerodha
+
+```bash
+python pravin_news.py fetch && python pravin_news.py latest     # official announcements
+python pravin_brief.py                                          # brief on demo prices + real announcements
+python pravin_journal.py open --instrument NIFTY --kind option --side long \
+    --entry 120 --stop 95 --target 170 --qty 65 --setup discretionary --mode paper
+python pravin_journal.py close 1 --exit 150 --reason manual
+python pravin_journal.py review --days 30
+python pravin_options.py --chain my_chain.csv --spot 25120 --expiry 2026-11-17 \
+    --direction long --target 25220 --stop 25060 --minutes 90 --lot-size 65
+```
+
+The journal works for any trade from any broker. Log the plan **before** you enter.
+
 ## Every trading day
 
 ```bash
@@ -47,7 +66,15 @@ source .venv/bin/activate
 python pravin_kite.py login                          # tokens expire every morning
 python pravin_kite.py fetch --years 0.05             # top up recent candles
 python pravin_brief.py --provider kite --telegram    # morning brief to your phone (add --ai for a summary)
-python pravin_live.py                                # live alerts 09:15-15:30; leave it running
+python pravin_live.py --paper                        # live alerts, paper-trading each validated setup
+python pravin_journal.py review --days 1             # after the close
+```
+
+Or automate everything except the Kite login (macOS):
+
+```bash
+python pravin_schedule.py install --provider kite
+sudo pmset repeat wakeorpoweron MTWRF 07:40:00       # wake the Mac on weekday mornings
 ```
 
 Keep `events.csv` up to date (RBI, Fed, budget, results) and, if you like,
@@ -65,12 +92,13 @@ Keep `events.csv` up to date (RBI, Fed, budget, results) and, if you like,
 
 - Index candles have no volume, so VWAP-based setups are not tested. Expired option contracts have no history at Zerodha, so option premiums cannot be backtested; trades are simulated on the index with futures charges.
 - Lot size is today's value from Kite; historical lot sizes differed (R-multiples are unaffected).
-- News and global market feeds are not connected: no licensed source has been chosen yet.
+- Official announcements only (RBI, SEBI, exchanges). Commercial news and global market feeds need a licensed source, not chosen yet.
+- Option maths uses Black-Scholes with constant volatility; IV jumps on fast days and around events. Treat values as estimates.
 - No user accounts or database yet. This is a single-user tool that runs on your computer.
 
 ## Keep private
 
-Your repo is public. Never commit `.env`, `.kite_token`, or the `data/`, `results/` and `reports/` folders
+Your repo is public. Never commit `.env`, `.kite_token`, `journal.db`, `news.db`, or the `data/`, `results/`, `reports/` and `logs/` folders
 (`.gitignore` blocks them). Do not publish a dashboard built from your Zerodha data to GitHub Pages:
 Zerodha's data is for your personal use.
 

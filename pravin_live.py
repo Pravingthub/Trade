@@ -6,6 +6,7 @@ READ-ONLY: it never places orders. You decide and execute in Kite.
 
     python pravin_live.py                     # NIFTY 50 + NIFTY BANK, Telegram alerts
     python pravin_live.py --show-unvalidated  # also show setups that have not passed backtests (labelled)
+    python pravin_live.py --paper             # paper-trade each alerted setup into the journal
 
 Needs: a Kite Connect subscription, `python pravin_kite.py login` today,
 local daily history (`python pravin_kite.py fetch`), and TELEGRAM_* in .env
@@ -100,6 +101,8 @@ class Watcher:
     sent: set[str] = field(default_factory=set)
     last_tick: datetime | None = None
     stale: bool = False
+    paper: object | None = None            # pravin_journal.PaperBook, to paper-trade alerts automatically
+    guard_fn: Callable | None = None       # returns a DailyGuard rebuilt from the journal
 
     def __post_init__(self):
         self.ctx = B.make_context(self.daily_before, self.day, pd.DataFrame())
@@ -147,6 +150,9 @@ class Watcher:
                 elif self.prev_close >= lvl > close:
                     out += self._emit(f"{name}-down", "level", f"5-min close {close:,.2f} below {name} {lvl:,.2f}", at)
         self.prev_close = close
+        if self.paper is not None:
+            out += [Alert(f"paper-{at:%H%M}-{k}", "paper", f"{self.name}: {m}", at)
+                    for k, m in enumerate(self.paper.on_bar(bar))]
         if not self.stale:
             out += self._setups(at)
         return out
@@ -165,7 +171,8 @@ class Watcher:
                 continue                                   # only alert on the bar that just confirmed
             side = "LONG" if setup.direction == 1 else "SHORT"
             ref = bars["close"].iloc[-1]
-            gs = self.guard.status(at)
+            gs = (self.guard_fn(at) if self.guard_fn else self.guard).status(at)
+            sz = None
             lines = [f"{s.name} confirmed. {side} above/below {ref:,.2f} on the next bar.",
                      f"Stop {setup.stop:,.2f} · target {setup.target:,.2f} ({s.params.get('rr', 2):g}R).",
                      f"Underlying risk {abs(ref - setup.stop):,.2f} points."]
@@ -177,12 +184,17 @@ class Watcher:
             if not ok:
                 lines.insert(0, "NOT VALIDATED (information only).")
             lines.append("Options: check strike liquidity, spread and time decay before acting.")
-            out += self._emit(f"setup-{s.id}", "setup", " ".join(lines), at)
+            emitted = self._emit(f"setup-{s.id}", "setup", " ".join(lines), at)
+            if emitted and self.paper is not None and gs["can_recommend"] and sz is not None and sz.ok:
+                self.paper.queue(self.iid, "long" if setup.direction == 1 else "short", setup.stop, setup.target,
+                                 sz.quantity, s.id, ok)
+                emitted[0].text += " Paper trade queued for the next bar."
+            out += emitted
         return out
 
 
 # ====================================================================== runner (Kite WebSocket)
-def run_live(ids: list[str], show_unvalidated: bool, capital: float, notify: Callable[[str], None]):
+def run_live(ids: list[str], show_unvalidated: bool, capital: float, notify: Callable[[str], None], paper: bool = False):
     from kiteconnect import KiteTicker
 
     from pravin_kite import DEFAULT_INSTRUMENTS, LocalStore, kite_client, load_env, load_token, resolve_tokens
@@ -191,7 +203,15 @@ def run_live(ids: list[str], show_unvalidated: bool, capital: float, notify: Cal
     store = LocalStore()
     tokens = resolve_tokens(kite, {i: DEFAULT_INSTRUMENTS[i] for i in ids})
     today = datetime.now(IST).date()
-    guard = DailyGuard(RiskPolicy(capital=capital))
+    import pravin_journal as J
+    policy = RiskPolicy(capital=capital)
+    guard = DailyGuard(policy)
+    con = J.connect()
+    mode = "paper" if paper else "live"
+    book = J.PaperBook(con, policy, slippage=1.0) if paper else None
+
+    def guard_fn(now):
+        return J.guard_for(con, now, policy, mode)
     lots = store.meta().get("lot_sizes", {})
     watchers = {}
     for iid, tok in tokens.items():
@@ -199,7 +219,8 @@ def run_live(ids: list[str], show_unvalidated: bool, capital: float, notify: Cal
         daily = daily[daily.index < today]
         rep = B.latest_results(iid) or {"results": []}
         validated = {r["strategy"]["id"] for r in rep["results"] if r["verdict"]["status"] == "candidate_for_paper_trading"}
-        watchers[tok] = Watcher(iid, DEFAULT_INSTRUMENTS[iid][1], daily, today, validated, guard, lots.get(iid), show_unvalidated)
+        watchers[tok] = Watcher(iid, DEFAULT_INSTRUMENTS[iid][1], daily, today, validated, guard, lots.get(iid), show_unvalidated,
+                                paper=book, guard_fn=guard_fn)
         notify(f"Watching {DEFAULT_INSTRUMENTS[iid][1]}: CPR {watchers[tok].ctx.cpr.bottom:,.2f}–{watchers[tok].ctx.cpr.top:,.2f}; "
                f"validated setups: {', '.join(sorted(validated)) or 'none'}")
     kt = KiteTicker(env["KITE_API_KEY"], load_token())
@@ -242,6 +263,7 @@ def main(argv=None):
     ap.add_argument("--ids", default="NIFTY50,BANKNIFTY")
     ap.add_argument("--capital", type=float, default=100_000)
     ap.add_argument("--show-unvalidated", action="store_true")
+    ap.add_argument("--paper", action="store_true", help="paper-trade every alerted setup into journal.db")
     a = ap.parse_args(argv)
     from pravin_brief import telegram_from_env
     from pravin_kite import load_env
@@ -254,7 +276,7 @@ def main(argv=None):
                 tg.send(text, dedupe_key=f"{date.today()}-{text}")
             except Exception as e:      # alerts must never crash the watcher
                 print("Telegram failed:", e)
-    run_live(a.ids.split(","), a.show_unvalidated, a.capital, notify)
+    run_live(a.ids.split(","), a.show_unvalidated, a.capital, notify, a.paper)
 
 
 __all__ = ["CandleBuilder", "Watcher", "Alert", "ClosedTrade"]

@@ -118,7 +118,8 @@ def setup_status(iid: str, day_cpr: dict, weekly: dict, results_dir: Path) -> li
 
 def build_brief(service, as_of: date | None = None, ids: list[str] | None = None, capital: float = 100_000,
                 events_path: Path = ROOT / "events.csv", global_path: Path = ROOT / "global_markets.csv",
-                results_dir: Path = ROOT / "results", now: datetime | None = None) -> dict:
+                results_dir: Path = ROOT / "results", now: datetime | None = None,
+                news_db: Path | None = None) -> dict:
     now = now or datetime.now(IST)
     as_of = as_of or service.next_session()
     ids = ids or [i.id for i in service.p.get_instruments() if i.segment == "index"]
@@ -134,7 +135,23 @@ def build_brief(service, as_of: date | None = None, ids: list[str] | None = None
     completeness.append({"input": "global markets", "status": "missing" if not glob else
                          ("stale" if any(g["stale"] for g in glob) else "ok"),
                          "detail": f"{len(glob)} rows" if glob else "no licensed feed configured; global_markets.csv empty"})
-    completeness.append({"input": "news", "status": "not_configured", "detail": "no licensed news source selected yet"})
+    news_db = news_db or ROOT / "news.db"
+    announcements = []
+    if news_db.exists():
+        import pravin_news as N
+        con = N.connect(news_db)
+        h = N.health(con, now)
+        announcements = [{k: r[k] for k in ("publisher", "title", "link", "impact", "reasons", "affects", "published_utc")}
+                         for r in N.latest(con, hours=18, min_impact="medium", now=now)][:12]
+        st = "failing" if h["failing"] else "stale" if h["stale"] else "ok"
+        detail = f"official feeds (RBI/SEBI/exchanges); {len(announcements)} notable in 18h"
+        if h["failing"]:
+            detail += "; failing: " + ", ".join(h["failing"])
+        completeness.append({"input": "official announcements", "status": st, "detail": detail})
+    else:
+        completeness.append({"input": "official announcements", "status": "missing", "detail": "run pravin_news.py fetch"})
+    completeness.append({"input": "commercial news / global feeds", "status": "not_configured",
+                         "detail": "no licensed source selected yet"})
     has_results = any((results_dir / f"backtest_{i}.json").exists() for i in ids)
     completeness.append({"input": "backtests", "status": "ok" if has_results else "missing",
                          "detail": "" if has_results else "run pravin_backtest.py to validate setups"})
@@ -142,8 +159,15 @@ def build_brief(service, as_of: date | None = None, ids: list[str] | None = None
 
     pol = RiskPolicy(capital=capital)
     instruments = []
+    from pravin_quant import QuantError
     for iid in ids:
-        d, w, m = (service.cpr(iid, p, as_of) for p in ("day", "week", "month"))
+        try:
+            d, w, m = (service.cpr(iid, p, as_of) for p in ("day", "week", "month"))
+        except QuantError as e:          # e.g. yesterday's candles not downloaded yet
+            instruments.append({"id": iid, "name": service.p.instrument(iid).name, "error": str(e)})
+            completeness[0]["status"] = "incomplete"
+            completeness[0]["detail"] += f"; {iid}: {e}"
+            continue
         piv = service.pivots(iid, "day", as_of)
         ind = service.indicators(iid, "day", as_of)
         mtf = service.multi_timeframe(iid, as_of)
@@ -170,7 +194,8 @@ def build_brief(service, as_of: date | None = None, ids: list[str] | None = None
         "for_session": as_of.isoformat(), "generated_ist": now.isoformat(timespec="minutes"),
         "demo": prov.data_mode.value == "simulated",
         "completeness": completeness, "events": events, "event_risk_today": bool(high_event_today),
-        "global": glob, "instruments": instruments,
+        "global": glob, "announcements": announcements,
+        "announcement_risk": any(a["impact"] == "high" for a in announcements), "instruments": instruments,
         "risk": {"capital": capital, "per_trade": pol.risk_budget,
                  "daily_stop": capital * pol.daily_loss_stop_pct / 100, "max_trades": pol.max_trades_per_day,
                  "min_reward_risk": pol.min_reward_risk},
@@ -199,11 +224,20 @@ def to_markdown(b: dict) -> str:
           for e in b["events"]] or ["- none entered in events.csv"]
     if b["event_risk_today"]:
         L += ["", "**High-impact event today: expect wider ranges; setups are downgraded to watch-only around the event.**"]
+    if b.get("announcements"):
+        L += ["", "## Official announcements (last 18 hours)", ""] + [
+            f"- [{a['impact']}] {a['publisher']}: {a['title']} ({a['reasons']})" for a in b["announcements"]]
+        if b.get("announcement_risk"):
+            L += ["", "**High-impact official announcement in the last 18 hours: check it before trading.**"]
     if b["global"]:
         L += ["", "## Global markets", ""] + [
             f"- {g['market']}: {g['last']} ({g['change_pct']}%) as of {g['as_of_ist']}{' — STALE' if g['stale'] else ''}"
             for g in b["global"]]
     for i in b["instruments"]:
+        if i.get("error"):
+            L += ["", f"## {i['name']}", "", f"**Levels not calculated: {i['error']}.** "
+                  "Log in to Kite and run `python pravin_kite.py fetch --years 0.05`, then rebuild the brief."]
+            continue
         L += ["", f"## {i['name']}", "",
               f"Last close {f(i['last_close'])} ({i['last_close_label']}). Regime: {i['regime'].replace('_', ' ')}; "
               f"timeframes {i['timeframes'].replace('_', ' ')}; ATR {f(i['atr14'])}, RSI {f(i['rsi14'], 1)}, ADX {f(i['adx14'], 1)}.", "",
@@ -243,7 +277,12 @@ def to_telegram(b: dict) -> str:
         L.append("Missing: " + ", ".join(missing))
     if b["event_risk_today"]:
         L.append("⚠ High-impact event today")
+    for a in [x for x in b.get("announcements", []) if x["impact"] == "high"][:3]:
+        L.append(f"⚠ {a['publisher']}: {a['title'][:120]}")
     for i in b["instruments"]:
+        if i.get("error"):
+            L += ["", f"{i['name']}: levels NOT calculated ({i['error']}). Log in to Kite and refresh data."]
+            continue
         c = i["cpr"]["day"]
         L += ["", f"{i['name']}: close {i['last_close']:,.2f}",
               f"CPR {c['bottom']:,.2f}–{c['top']:,.2f} ({c['width_label']}, {LABEL[c['relation']]})",
@@ -314,6 +353,7 @@ def guard_narrative(raw: str, facts: dict) -> tuple[dict | None, str]:
 
 def add_narrative(brief: dict, ai: AIProvider) -> dict:
     facts = {k: brief[k] for k in ("for_session", "completeness", "events", "event_risk_today", "global", "instruments", "risk")}
+    facts["announcement_headlines"] = [f"{a['publisher']}: {a['title']}" for a in brief.get("announcements", [])]
     raw = ai.complete_json(AI_SYSTEM, json.dumps(facts, default=str))
     narrative, why = guard_narrative(raw, facts)
     brief["narrative"] = narrative

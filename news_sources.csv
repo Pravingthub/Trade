@@ -1,0 +1,8 @@
+id,enabled,url,publisher,default_affects
+# Official sources only. Add NSE feeds by copying the exact links from https://www.nseindia.com/rss-feed
+rbi_press,1,https://rbi.org.in/pressreleases_rss.xml,Reserve Bank of India,BANKNIFTY|NIFTY50
+rbi_notifications,1,https://rbi.org.in/notifications_rss.xml,Reserve Bank of India,BANKNIFTY
+sebi,1,https://www.sebi.gov.in/sebirss.xml,SEBI,NIFTY50|BANKNIFTY
+bse_notices,1,https://www.bseindia.com/data/xml/notices.xml,BSE,NIFTY50
+nse_announcements,0,,NSE (paste the Announcements feed URL from nseindia.com/rss-feed),NIFTY50
+nse_circulars,0,,NSE (paste the Circulars feed URL from nseindia.com/rss-feed),NIFTY50|BANKNIFTY

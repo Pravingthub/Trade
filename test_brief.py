@@ -18,7 +18,7 @@ def brief(tmp_path):
     (tmp_path / "global.csv").write_text("as_of_ist,market,last,change_pct,source\n"
                                          "2026-11-11T02:30,S&P 500,6800.5,0.4,manual\n2026-11-09T02:30,Nikkei,51000,-1.2,manual\n")
     return P.build_brief(SVC, events_path=tmp_path / "events.csv", global_path=tmp_path / "global.csv",
-                         results_dir=tmp_path, now=datetime(2026, 11, 11, 7, 30, tzinfo=IST))
+                         results_dir=tmp_path, now=datetime(2026, 11, 11, 7, 30, tzinfo=IST), news_db=tmp_path / "none.db")
 
 
 def test_brief_numbers_come_from_the_engine(brief):
@@ -32,7 +32,7 @@ def test_completeness_flags_missing_and_stale_inputs(brief):
     c = {x["input"]: x for x in brief["completeness"]}
     assert c["market data"]["warning"].startswith("DEMO")
     assert c["global markets"]["status"] == "stale"          # Nikkei row is 2 days old
-    assert c["news"]["status"] == "not_configured"
+    assert c["official announcements"]["status"] == "missing"
     assert c["backtests"]["status"] == "missing"
 
 
@@ -51,7 +51,8 @@ def test_setup_eligible_only_when_backtest_passed_and_conditions_met(tmp_path):
     rep = {"results": [{"strategy": {"id": "CPR-NARROW-OPEN"}, "verdict": {"status": "candidate_for_paper_trading"},
                         "out_of_sample": {"trades": 40, "win_rate_pct": 45, "profit_factor": 1.4, "expectancy_r": 0.2}}]}
     (tmp_path / "backtest_NIFTY50.json").write_text(json.dumps(rep))
-    b = P.build_brief(SVC, ids=["NIFTY50"], results_dir=tmp_path, events_path=tmp_path / "x", global_path=tmp_path / "y")
+    b = P.build_brief(SVC, ids=["NIFTY50"], results_dir=tmp_path, events_path=tmp_path / "x", global_path=tmp_path / "y",
+                      news_db=tmp_path / "none.db")
     s = {x["id"]: x for x in b["instruments"][0]["setups"]}
     assert s["CPR-NARROW-OPEN"]["eligible"] is (s["CPR-NARROW-OPEN"]["conditions_met_premarket"] is True)
     assert s["CPR-INSIDE-BREAK"]["eligible"] is False         # never backtested
@@ -126,3 +127,29 @@ def test_telegram_retries_then_succeeds(tmp_path):
         return FakeResp(b'{"ok": true}')
     tg = P.TelegramSender("T", "C", tmp_path / "log", opener=opener, sleep=lambda s: None)
     assert tg.send("hello") == "sent" and n["k"] == 3
+
+
+def test_brief_includes_official_announcements(tmp_path):
+    from datetime import timezone
+
+    import pravin_news as N
+    from test_news import RBI_SAMPLE
+    con = N.connect(tmp_path / "news.db")
+    now = datetime(2026, 11, 11, 7, 30, tzinfo=IST)
+    N.store(con, N.parse_feed(RBI_SAMPLE, "rbi_press", "Reserve Bank of India"), "BANKNIFTY", now.astimezone(timezone.utc))
+    con.execute("INSERT INTO fetches VALUES ('rbi_press', ?, 1, 3, NULL)", (now.astimezone(timezone.utc).isoformat(),))
+    con.commit()
+    b = P.build_brief(SVC, ids=["NIFTY50"], news_db=tmp_path / "news.db", events_path=tmp_path / "e",
+                      global_path=tmp_path / "g", results_dir=tmp_path, now=now)
+    assert b["announcement_risk"] is True
+    assert [a["impact"] for a in b["announcements"]] == ["high", "medium"]       # penalty notice filtered out
+    md, tg = P.to_markdown(b), P.to_telegram(b)
+    assert "Official announcements" in md and "Monetary Policy" in tg
+
+
+def test_brief_degrades_gracefully_when_data_is_a_day_old(tmp_path):
+    late = date(2026, 11, 13)                    # data ends 10 Nov; 11 and 12 Nov candles missing
+    b = P.build_brief(SVC, as_of=late, ids=["NIFTY50"], results_dir=tmp_path, events_path=tmp_path / "e",
+                      global_path=tmp_path / "g", news_db=tmp_path / "n.db")
+    assert b["instruments"][0]["error"] and b["completeness"][0]["status"] == "incomplete"
+    assert "Levels not calculated" in P.to_markdown(b) and "NOT calculated" in P.to_telegram(b)
