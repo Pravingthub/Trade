@@ -126,3 +126,9 @@ def test_sebi_enforcement_orders_are_routine():
     t = ("Cancellation of Recovery Certificate No. 9290 of 2026 issued against A (PAN: X) and B jointly and severally "
          "in the matter of trading activity in the scrip of ANI Integrated Services Limited")
     assert N.score(t, "")["bias"] == "routine"
+
+
+def test_prohibitory_orders_against_individuals_are_routine_not_adverse():
+    sc = N.score("Prohibitory Order No. 1583 of 2026 issued against CAT Technologies Limited in the matter of CAT Technologies Ltd.", "")
+    assert sc["bias"] == "routine" and sc["impact"] == "low"
+    assert N.score("SEBI tightens margin rules for index derivatives", "")["bias"] == "adverse"

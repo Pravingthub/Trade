@@ -128,7 +128,7 @@ tr:last-child td{border-bottom:0}
 .feed{list-style:none;margin:0;padding:0}
 .feed li{padding:8px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:auto 1fr;gap:3px 8px}
 .feed li:last-child{border-bottom:0}
-.imp{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;padding:1px 5px;border-radius:3px;height:fit-content}
+.imp{font-size:11px;font-weight:600;letter-spacing:.02em;padding:1px 6px;border-radius:3px;height:fit-content;white-space:nowrap}
 .imp.high{background:var(--bear-t);color:var(--bear)} .imp.medium{background:var(--warn-t);color:var(--warn)} .imp.low{background:var(--panel2);color:var(--dim)}
 .feed .t{font-size:12.5px;text-decoration:none;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .mr{padding:14px 16px}.mr .lean{font-size:22px;font-weight:600;letter-spacing:.03em}
@@ -162,7 +162,7 @@ tr:last-child td{border-bottom:0}
 .feed li.b-check,.feed li.b-mixed{box-shadow:inset 3px 0 0 var(--warn);padding-left:9px}
 .feed li.b-neutral{box-shadow:inset 3px 0 0 var(--cpr);padding-left:9px}
 .feed li.b-routine{box-shadow:inset 3px 0 0 var(--line);padding-left:9px}
-.bias{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:1px 5px;border-radius:3px;height:fit-content;white-space:nowrap}
+.bias{font-size:11px;font-weight:600;letter-spacing:.02em;padding:1px 6px;border-radius:3px;height:fit-content;white-space:nowrap}
 .bias.supportive{background:var(--bull-t);color:var(--bull)} .bias.adverse{background:var(--bear-t);color:var(--bear)}
 .bias.check,.bias.mixed{background:var(--warn-t);color:var(--warn)} .bias.neutral{background:var(--cpr-t);color:var(--cpr)}
 .bias.routine{background:var(--panel2);color:var(--dim)}
@@ -237,7 +237,7 @@ footer b{color:var(--muted);font-weight:500}
   <section class="p c4"><div class="ph"><h2>Global overnight</h2><span class="aside" id="glaside"></span></div><div class="pb" id="global"></div></section>
   <section class="p c5"><div class="ph"><h2>Official announcements</h2>
     <div class="seg" id="nf"><button data-f="notable" aria-pressed="true">Notable</button><button data-f="all" aria-pressed="false">All</button><button data-f="bank" aria-pressed="false">Banking</button></div></div>
-    <div class="pb"><p class="sum" id="newssum"></p><div class="legend"><span class="bias supportive">supportive</span><span class="bias adverse">adverse</span><span class="bias check">high impact · read</span><span class="bias neutral">relevant</span><span class="bias routine">routine</span></div>
+    <div class="pb"><p class="sum" id="newssum"></p><div class="legend"><span class="bias supportive">Good for markets ↑</span><span class="bias adverse">Bad for markets ↓</span><span class="bias check">Read before trading</span><span class="bias neutral">Worth knowing</span><span class="bias routine">Routine, ignore</span></div>
     <ul class="feed" id="news"></ul><p class="note" id="newsaside"></p></div></section>
   <section class="p c3"><div class="ph"><h2>Events</h2><span class="aside">events.csv</span></div><div class="pb"><ul class="feed" id="events"></ul></div></section>
 </div></section>
@@ -585,22 +585,42 @@ function risk() {
 
 function feeds() {
   const all = DATA.news, h = DATA.news_health;
-  const BL = { supportive: "supportive", adverse: "adverse", check: "read now", mixed: "mixed", neutral: "relevant", routine: "routine" };
+  const BL = { supportive: "Good for markets ↑", adverse: "Bad for markets ↓", check: "Read before trading", mixed: "Mixed signal", neutral: "Worth knowing", routine: "Routine, ignore" };
+  const WHY = {
+    "rate cut": "RBI cut rates: cheaper money usually lifts banks and the market.",
+    "rate hike": "RBI raised rates: dearer money usually weighs on banks and the market.",
+    "monetary policy": "RBI policy news: can move banks and the whole market. Read it.",
+    "RBI governor statement": "RBI governor's statement: can move rate expectations. Read it.",
+    "liquidity injection": "RBI adding cash to the banking system: mildly positive for banks.",
+    "liquidity absorption": "RBI draining cash from the banking system: mildly negative for banks.",
+    "derivatives rules": "Change to F&O rules (lots, margins, expiry): check how it affects your trades.",
+    "tightening": "New restrictions or higher costs: usually a mild negative.",
+    "easing": "Rules relaxed or costs lowered: usually a mild positive.",
+    "market timing": "Change to trading hours or holidays: check before planning trades.",
+    "macro data": "Economic data (inflation, GDP, trade): can move the market.",
+    "foreign flows": "Foreign investor flows: large flows move the index.",
+    "market surveillance": "Exchange surveillance list: affects specific small stocks, not the index.",
+    "routine enforcement": "SEBI or RBI action against specific people or firms: no effect on the index.",
+    "routine operations": "Routine RBI operation (auctions, money-market data): no effect on your trades.",
+  };
+  const why = a => { const r = String(a.reasons || "").split(", ")[0];
+    return WHY[r] || (r.startsWith("heavyweight results") ? "Results from a stock that moves the index: expect a bigger move. Read before trading." : "No market-moving keywords found."); };
   const keep = a => S.nf === "all" || (S.nf === "notable" ? a.bias !== "routine" : String(a.affects || "").includes("BANKNIFTY"));
   const n = all.filter(keep);
   const cnt = b => all.filter(a => a.bias === b).length;
-  $("newssum").innerHTML = all.length ? `<span class="bull">${cnt("supportive")} supportive</span> · <span class="bear">${cnt("adverse")} adverse</span> · <span class="warn">${cnt("check") + cnt("mixed")} to read</span> · ${cnt("routine")} routine`
+  $("newssum").innerHTML = all.length ? `<span class="bull">${cnt("supportive")} good for markets</span> · <span class="bear">${cnt("adverse")} bad for markets</span> · <span class="warn">${cnt("check") + cnt("mixed")} to read before trading</span> · ${cnt("neutral")} worth knowing · ${cnt("routine")} routine`
     : "";
   $("newsaside").textContent = (h.last_fetch_utc ? "Last fetched " + new Date(h.last_fetch_utc).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) + " IST. " : "") + (h.never_fetched ? "Feeds not fetched yet." : (h.failing && h.failing.length ? "Failing: " + h.failing.join(", ") + "." : "Sources: RBI, SEBI, BSE official feeds."))
     + " Colours come from transparent keyword rules in pravin_news.py, not a forecast.";
   $("news").innerHTML = n.length ? n.map(a => `<li class="b-${a.bias || "routine"}"><span class="bias ${a.bias || "routine"}">${BL[a.bias] || "routine"}</span><a class="t" href="${esc(a.link)}" target="_blank" rel="noopener">${esc(a.title)}</a>
-    <span class="m">${esc(a.publisher)} · ${a.published_utc ? new Date(a.published_utc).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) + " IST" : ""} · ${esc(a.impact)} impact · ${esc(a.reasons)}</span></li>`).join("")
+    <span class="m">${esc(why(a))}<br>${esc(a.publisher)}${a.published_utc ? " · " + new Date(a.published_utc).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) + " IST" : ""}</span></li>`).join("")
     : `<li class="empty">${all.length ? `Nothing notable: all ${all.length} recent items are routine (orders, auctions, notices). Tap <b>All</b> to see them.` : "No announcements stored. Run <span class='mono'>pravin_news.py fetch</span>."}</li>`;
   const ev = DATA.brief.events, cal = DATA.brief.calendar;
   const head = cal.checked ? `<li class="empty bull">Calendar checked (${esc(cal.detail)}).</li>`
     : `<li class="empty bear">Calendar NOT checked: ${esc(cal.detail)}. Event risk is unknown, so the desk will not trade. Review events.csv and set the "reviewed:" date.</li>`;
   const unv = cal.unverified_rows ? `<li class="empty">${cal.unverified_rows} unverified row(s) ignored.</li>` : "";
-  $("events").innerHTML = head + unv + (ev.length ? ev.map(e => `<li><span class="imp ${e.impact}">${esc(e.impact)}</span><span class="t">${esc(e.event)}</span><span class="m">${dt(e.date)} ${esc(e.time_ist || "")} IST · ${esc(e.region || "")} · moves the ${dt(e.affects_session)} session · ${esc(e.source || "")}</span></li>`).join("")
+  const IMP = { high: "Moves markets", medium: "May move markets", low: "Minor" };
+  $("events").innerHTML = head + unv + (ev.length ? ev.map(e => `<li><span class="imp ${e.impact}">${IMP[e.impact] || esc(e.impact)}</span><span class="t">${esc(e.event)}</span><span class="m">${dt(e.date)} ${esc(e.time_ist || "")} IST · ${esc(e.region || "")} · moves the ${dt(e.affects_session)} session · ${esc(e.source || "")}</span></li>`).join("")
     : (cal.checked ? `<li class="empty">Nothing scheduled in the next 7 days.</li>` : ""));
 }
 

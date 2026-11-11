@@ -63,7 +63,7 @@ RULES = [
     (r"foreign portfolio|\bfpi\b|\bfii\b|external commercial", 3, "foreign flows", "NIFTY50", None),
     (r"circuit|surveillance|ban period|\basm\b|\bgsm\b", 3, "market surveillance", "NIFTY50", None),
     (r"penalty|cancels certificate of registration|directions under section 35a|co-operative bank|nbfc|supersession|"
-     r"recovery certificate|release order|attachment|adjudication order|settlement order|in the matter of", -4,
+     r"recovery certificate|release order|attachment|adjudication order|settlement order|in the matter of|prohibitory order", -4,
      "routine enforcement", "", None),
     (r"auction of (state )?government|government of india dated securit|state government securities|treasury bills|"
      r"money market operations|\bsgb\b|sovereign gold", -3, "routine operations", "", None),
@@ -148,12 +148,16 @@ def score(title: str, default_affects: str) -> dict:
             if bias:
                 biases.add(bias)
     impact = "high" if s >= 6 else "medium" if s >= 3 else "low"
+    if any(r.startswith("routine") for r in reasons):
+        biases = set()                                  # routine notices never count as good or bad for markets
     if len(biases) == 2:
         bias = "mixed"
     elif biases:
         bias = biases.pop()
     else:
         bias = "check" if impact == "high" else "neutral" if impact == "medium" else "routine"
+    if any(r.startswith("routine") for r in reasons):
+        bias, impact = "routine", "low"
     return {"score": s, "impact": impact, "bias": bias, "reasons": ", ".join(dict.fromkeys(reasons)) or "no rule matched",
             "affects": "|".join(sorted(affects))}
 
