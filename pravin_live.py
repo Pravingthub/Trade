@@ -82,9 +82,10 @@ class CandleBuilder:
 @dataclass
 class Alert:
     key: str
-    kind: str          # level | setup | feed | guard
+    kind: str          # level | setup | feed | stance | paper | news
     text: str
     at: datetime
+    data: dict | None = None     # setup alerts: the plan, so a Telegram button can log it
 
 
 @dataclass
@@ -209,6 +210,11 @@ class Watcher:
                 lines.insert(0, "NOT VALIDATED (information only).")
             lines.append("Options: check strike liquidity, spread and time decay before acting.")
             emitted = self._emit(f"setup-{s.id}", "setup", " ".join(lines), at)
+            if emitted:
+                emitted[0].data = {"instrument": self.iid, "side": "long" if setup.direction == 1 else "short",
+                                   "entry": float(ref), "stop": float(setup.stop), "target": float(setup.target),
+                                   "qty": int(sz.quantity) if sz is not None and sz.ok else int(self.lot_size or 1),
+                                   "setup": s.id, "validated": ok, "kind": "future"}
             if emitted and self.paper is not None and gs["can_recommend"] and sz is not None and sz.ok:
                 self.paper.queue(self.iid, "long" if setup.direction == 1 else "short", setup.stop, setup.target,
                                  sz.quantity, s.id, ok)
@@ -218,7 +224,7 @@ class Watcher:
 
 
 # ====================================================================== runner (Kite WebSocket)
-def run_live(ids: list[str], show_unvalidated: bool, capital: float, notify: Callable[[str], None], paper: bool = False):
+def run_live(ids: list[str], show_unvalidated: bool, capital: float, notify: Callable, paper: bool = False, tg=None):
     from kiteconnect import KiteTicker
 
     from pravin_kite import DEFAULT_INSTRUMENTS, LocalStore, kite_client, load_env, load_token, resolve_tokens
@@ -267,16 +273,29 @@ def run_live(ids: list[str], show_unvalidated: bool, capital: float, notify: Cal
                 with lock:
                     for item in fresh:
                         if item["impact"] in ("high", "medium"):
-                            notify(f"News [{item['impact']}/{item['bias']}]: {item['publisher']}: {item['title']}")
+                            notify(f"📰 {item['publisher']}: {item['title']}", loud=item["impact"] == "high")
                         for w in watchers.values():
                             if not item["affects"] or w.iid in item["affects"]:
                                 for a in w.on_news(item["impact"], item["bias"] or "", item["title"], datetime.now(IST)):
-                                    notify(a.text)
+                                    notify(a)
             except Exception as e:                  # news problems never stop price monitoring
                 print("news poll failed:", e)
             _time.sleep(300)
 
     threading.Thread(target=poll_news, daemon=True).start()
+
+    def poll_buttons():
+        import pravin_notify as NT
+        off = 0
+        while tg is not None and datetime.now(IST).time() < time(16, 0):
+            try:
+                with lock:
+                    off = NT.handle_callbacks(tg, con, policy, off)
+            except Exception as e:                  # a Telegram hiccup never stops the watcher
+                print("button poll failed:", e)
+            _time.sleep(3)
+
+    threading.Thread(target=poll_buttons, daemon=True).start()
 
     def on_ticks(ws, ticks):
         with lock:
@@ -288,12 +307,12 @@ def run_live(ids: list[str], show_unvalidated: bool, capital: float, notify: Cal
                     chg = (px / base - 1) * 100
                     for w in watchers.values():
                         for a in w.on_proxy(pr[0], chg, pr[1]["threshold_pct"], datetime.now(IST)):
-                            notify(a.text)
+                            notify(a)
                     continue
                 w = watchers.get(t["instrument_token"])
                 if w:
                     for a in w.on_tick(datetime.now(IST), float(t["last_price"])):
-                        notify(a.text)
+                        notify(a)
 
     def on_connect(ws, response):
         toks = list(watchers) + list(proxy_by_token)
@@ -314,10 +333,30 @@ def run_live(ids: list[str], show_unvalidated: bool, capital: float, notify: Cal
             with lock:
                 for w in watchers.values():
                     for a in w.check_clock(datetime.now(IST)):
-                        notify(a.text)
+                        notify(a)
     finally:
         kt.close()
         notify("Market closed. Live watch stopped.")
+
+
+LOUD_KINDS = {"setup", "stance", "feed", "paper"}
+
+
+def route(n, alert: Alert, paper: bool) -> str:
+    """Send one alert with the right loudness; setup alerts get the two buttons."""
+    import pravin_notify as NT
+    if n is None:
+        return "no telegram"
+    if alert.kind == "setup":
+        aid = f"{alert.at:%Y%m%d%H%M}-{abs(hash(alert.key)) % 10**6}"
+        if alert.data:
+            NT.remember_alert(aid, alert.data)
+        return n.notify(NT.setup_message(alert.text, paper), loud=True, key=alert.key + f"{alert.at:%Y%m%d}",
+                        buttons=NT.setup_buttons(aid))
+    if alert.kind == "level":
+        return n.notify("📍 " + alert.text, loud=False, key=alert.key + f"{alert.at:%Y%m%d}")
+    icon = {"stance": "🧭 ", "feed": "📡 ", "paper": "📝 "}.get(alert.kind, "")
+    return n.notify(icon + alert.text, loud=alert.kind in LOUD_KINDS, key=alert.key + f"{alert.at:%Y%m%d}")
 
 
 def main(argv=None):
@@ -331,14 +370,17 @@ def main(argv=None):
     from pravin_kite import load_env
     tg = telegram_from_env(load_env())
 
-    def notify(text):
-        print(datetime.now(IST).strftime("%H:%M:%S"), text)
+    def notify(x, loud=True):
+        print(datetime.now(IST).strftime("%H:%M:%S"), x.text if isinstance(x, Alert) else x)
         if tg:
             try:
-                tg.send(text, dedupe_key=f"{date.today()}-{text}")
+                if isinstance(x, Alert):
+                    route(tg, x, a.paper)
+                else:
+                    tg.notify(x, loud=loud, key=f"{date.today()}-{x}")
             except Exception as e:      # alerts must never crash the watcher
                 print("Telegram failed:", e)
-    run_live(a.ids.split(","), a.show_unvalidated, a.capital, notify, a.paper)
+    run_live(a.ids.split(","), a.show_unvalidated, a.capital, notify, a.paper, tg)
 
 
 __all__ = ["CandleBuilder", "Watcher", "Alert", "ClosedTrade"]

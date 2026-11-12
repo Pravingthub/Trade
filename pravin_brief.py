@@ -472,10 +472,10 @@ class TelegramSender:
         return "sent"
 
 
-def telegram_from_env(env: dict) -> TelegramSender | None:
-    if env.get("TELEGRAM_BOT_TOKEN") and env.get("TELEGRAM_CHAT_ID"):
-        return TelegramSender(env["TELEGRAM_BOT_TOKEN"], env["TELEGRAM_CHAT_ID"])
-    return None
+def telegram_from_env(env: dict):
+    """Returns the Notifier (loud/silent, quiet hours, no duplicates). Kept for older callers."""
+    import pravin_notify
+    return pravin_notify.from_env(env)
 
 
 def main(argv=None):

@@ -6,8 +6,9 @@ Jobs (IST, Monday to Friday, skipped on NSE holidays from nse_holidays.csv):
     08:15  login    Telegram reminder to log in to Kite (Zerodha requires a manual login daily)
     08:50  brief    morning brief and TODAY'S PLAN (+ Telegram)
     09:10  live     live watcher until 15:30 (paper-trades alerts into the journal)
-    16:00  review   journal review of the day (+ Telegram)
-    18:30  screen   screen all NSE stocks for tomorrow's shortlist
+    15:45  review   day review to Telegram (silent)
+    18:30  screen   screen all NSE stocks; shortlist to Telegram (silent)
+    Sat 10:00 weekly  weekly review to Telegram (silent)
 
     python pravin_schedule.py install --provider kite     # writes and loads the launchd jobs
     python pravin_schedule.py status
@@ -40,8 +41,9 @@ JOBS = {
     "login": [(8, 15)],
     "brief": [(8, 50)],
     "live": [(9, 10)],
-    "review": [(16, 0)],
+    "review": [(15, 45)],
     "screen": [(18, 30)],
+    "weekly": [(10, 0)],
 }
 
 
@@ -58,7 +60,8 @@ def plist_for(job: str, python: str, provider: str) -> dict:
         "Label": LABEL.format(job),
         "ProgramArguments": [python, str(ROOT / "pravin_schedule.py"), "run", job, "--provider", provider],
         "WorkingDirectory": str(ROOT),
-        "StartCalendarInterval": [{"Weekday": wd, "Hour": h, "Minute": m} for wd in range(1, 6) for h, m in JOBS[job]],
+        "StartCalendarInterval": [{"Weekday": wd, "Hour": h, "Minute": m}
+                                  for wd in ((6,) if job == "weekly" else range(1, 6)) for h, m in JOBS[job]],
         "StandardOutPath": str(ROOT / "logs" / f"{job}.log"),
         "StandardErrorPath": str(ROOT / "logs" / f"{job}.log"),
         "EnvironmentVariables": {"TZ": "Asia/Kolkata", "PRAVIN_DATA_PROVIDER": provider},
@@ -91,6 +94,8 @@ def uninstall(agents: Path = AGENTS) -> None:
 def run(job: str, provider: str, today: date | None = None, runner=None, notify=None, has_token=None) -> str:
     """Execute one job if today is a trading day. Returns what happened (for logs and tests)."""
     today = today or datetime.now(IST).date()
+    if job == "weekly":
+        return f"exit {(runner or (lambda args: subprocess.run([sys.executable, *args], cwd=ROOT).returncode))(['pravin_notify.py', 'weekly'])}"
     if not trading_calendar().is_session(today):
         return "skipped: not a trading day"
     from pravin_kite import load_token
@@ -129,12 +134,10 @@ def run(job: str, provider: str, today: date | None = None, runner=None, notify=
     if job == "screen":
         if needs_kite and not has_token:
             return "not run: no Kite login today"
-        return f"exit {runner(['pravin_screen.py'])}"
+        runner(["pravin_screen.py"])
+        return f"exit {runner(['pravin_notify.py', 'shortlist'])}"
     if job == "review":
-        import pravin_journal as J
-        rv = J.review(J.connect(), today)
-        notify(J.review_markdown(rv)[:3800])
-        return "review sent"
+        return f"exit {runner(['pravin_notify.py', 'review'])}"
     raise ValueError(job)
 
 

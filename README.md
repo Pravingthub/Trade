@@ -30,6 +30,15 @@ You decide and you execute in Kite.
 It needs one repository secret: **Settings → Secrets and variables → Actions → New repository secret**,
 name `FRED_API_KEY`. Never put keys in any file in this repository; a test fails if one appears.
 
+## Telegram notifications
+
+Loud (phone buzzes) only when you must act: morning plan (08:50), setup triggered (with "I took it" /
+"Skipped" buttons that log to the journal), stance changes, your open trade, risk guard, high-impact news,
+data feed stale, and a result that changes tomorrow's lean. Silent: medium news, zone breaks, day review
+(15:45), stock shortlist (18:30), weekly review (Saturday 10:00), job notes. Nothing between 22:00 and 07:00.
+GitHub sends the plan and results (secrets TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID); your Mac sends live alerts.
+`python pravin_notify.py test` checks the connection.
+
 ## Your settings
 
 `vriddhi_config.json` holds capital (₹50,000–₹1,00,000), risk per trade, daily and weekly stops, max trades,
@@ -44,7 +53,7 @@ cd Trade                                   # your project folder
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
 cp env.example .env                        # then open .env and fill in your keys
-pytest -q                                  # should say 276 passed
+pytest -q                                  # should say 308 passed
 ```
 
 1. **Kite Connect**: create an app at developers.kite.trade (paid "Connect" plan; check the current price there).

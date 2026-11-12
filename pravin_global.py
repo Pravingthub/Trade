@@ -109,13 +109,27 @@ def load(path: Path = CACHE) -> dict | None:
     return json.loads(path.read_text()) if path.exists() else None
 
 
+def note_failure(msg: str, path: Path = ROOT / "failures.txt") -> None:
+    """Reason for the job's Telegram note (the GitHub job sends these as one silent message)."""
+    with path.open("a") as fh:
+        fh.write(msg + "\n")
+
+
 def main():
     from pravin_kite import load_env
     from pravin_quant import IST
     key = load_env().get("FRED_API_KEY")
     if not key:
-        raise SystemExit("Add FRED_API_KEY to .env (free key from fred.stlouisfed.org → My Account → API Keys).")
+        note_failure("global markets: FRED_API_KEY is missing (GitHub: Settings → Secrets → Actions)")
+        raise SystemExit("Add FRED_API_KEY to .env or as a GitHub secret (free key from fred.stlouisfed.org).")
     s = fetch_all(key, datetime.now(IST).date())
+    if not s["items"]:
+        first = next(iter(s.get("errors", {}).values()), "unknown error")
+        note_failure(f"global markets: FRED unreachable ({first}); kept the last good values")
+        print("FRED unreachable; keeping the last saved values.")
+        return
+    if s.get("errors"):
+        note_failure(f"global markets: {len(s['errors'])} of {len(SERIES)} series failed ({', '.join(s['errors'])})")
     save(s)
     print(f"Global tone: {s['tone']}  ({s['supportive']} supportive, {s['adverse']} adverse)")
     for i in s["items"]:

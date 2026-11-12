@@ -85,3 +85,27 @@ def test_no_api_key_value_in_any_repository_file():
     for p in root.glob("*"):
         if p.is_file() and p.suffix in (".py", ".json", ".csv", ".md", ".yml", ".html", ".txt", ".example"):
             assert not pat.search(p.read_text(errors="ignore")), p.name
+
+
+def test_unreachable_fred_keeps_last_good_values(tmp_path, monkeypatch):
+    good = G.fetch_all("k", TODAY, fred(dict(BASE)))
+    cache = tmp_path / "global.json"
+    G.save(good, cache)
+    monkeypatch.setattr(G, "CACHE", cache)
+    monkeypatch.setattr(G.save, "__defaults__", (cache,))
+    monkeypatch.setattr(G.note_failure, "__defaults__", (tmp_path / "failures.txt",))
+    monkeypatch.setenv("FRED_API_KEY", "k")
+    monkeypatch.setattr(G, "fetch_all", lambda key, day, getter=None: {"items": [], "errors": {"SP500": "timeout"}})
+    G.main()
+    assert len(G.load(cache)["items"]) == len(good["items"])            # not overwritten
+    assert "FRED unreachable (timeout)" in (tmp_path / "failures.txt").read_text()
+
+
+def test_missing_key_explains_itself(tmp_path, monkeypatch):
+    import pytest
+    monkeypatch.delenv("FRED_API_KEY", raising=False)
+    monkeypatch.setattr("pravin_kite.load_env", lambda *a, **k: {})
+    monkeypatch.setattr(G.note_failure, "__defaults__", (tmp_path / "failures.txt",))
+    with pytest.raises(SystemExit):
+        G.main()
+    assert "FRED_API_KEY is missing" in (tmp_path / "failures.txt").read_text()

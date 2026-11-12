@@ -274,7 +274,8 @@ const MONO = '"IBM Plex Mono",ui-monospace,monospace';
 
 function topbar() {
   const st = DATA.status, b = DATA.brief;
-  $("sess").textContent = `${dt(b.for_session, { weekday: "short", day: "2-digit", month: "short", year: "numeric" }).toUpperCase()} · PRE-OPEN · DATA TO ${dt(st.last_session).toUpperCase()}`;
+  const built = new Date(st.built_ist).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" });
+  $("sess").textContent = `${dt(b.for_session, { weekday: "short", day: "2-digit", month: "short", year: "numeric" }).toUpperCase()} · PRE-OPEN · DATA TO ${dt(st.last_session).toUpperCase()} · BUILT ${built.toUpperCase()} IST`;
   const comp = Object.fromEntries(b.completeness.map(c => [c.input, c]));
   const pill = (cls, t) => `<span class="${cls}"><i></i>${esc(t)}</span>`;
   const bt = comp["backtests"], oa = comp["official announcements"];
