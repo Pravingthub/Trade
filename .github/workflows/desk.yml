@@ -10,6 +10,7 @@ on:
     - cron: "15 1 * * 1-5"     # 06:45 IST, Monday to Friday
     - cron: "30 12 * * 1-5"    # 18:00 IST, picks up FRED values and official results published in the afternoon
     - cron: "0 11 * * 1-5"     # 16:30 IST, shortly after most official releases (CPI is at 16:00)
+    - cron: "20 3 * * 1-5"     # 08:50 IST, the morning plan to Telegram
   workflow_dispatch:            # "Run workflow" button for a manual refresh
 permissions:
   contents: write
@@ -22,22 +23,38 @@ jobs:
         with: { python-version: "3.12" }
       - run: pip install -r requirements.txt
       - name: Restore saved results
-        run: mkdir -p data && cp -f state/results.json data/results.json 2>/dev/null || true
+        run: |
+          mkdir -p data
+          for f in results.json notify_sent.json lean_state.json; do cp -f "state/$f" "data/$f" 2>/dev/null || true; done
       - name: Global markets (FRED)
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-        run: python pravin_global.py || echo "FRED fetch failed; the desk will say so"
+        run: python pravin_global.py || true
       - name: Official announcements
-        run: python pravin_news.py fetch || echo "News fetch failed; the desk will say so"
+        run: python pravin_news.py fetch || echo "announcements fetch failed" >> failures.txt
       - name: Official results (CPI etc.), read only when every check passes
-        run: python pravin_results.py || echo "Results check failed; the desk will say so"
+        run: python pravin_results.py || echo "results check failed" >> failures.txt
       - name: Build the desk
         run: python build_dashboard.py index.html
+      - name: Telegram test (only when you press "Run workflow")
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python pravin_notify.py test || echo "Telegram test failed - check the two secrets"
+      - name: Telegram (plan at 08:50, results after release, job notes)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python pravin_notify.py auto --desk index.html --failures "$(paste -sd';' failures.txt 2>/dev/null)" || echo "Telegram step skipped"
       - name: Publish
         run: |
           git config user.name "vriddhi-desk-bot"
-          mkdir -p state && cp -f data/results.json state/results.json 2>/dev/null || true
+          mkdir -p state
+          for f in results.json notify_sent.json lean_state.json; do cp -f "data/$f" "state/$f" 2>/dev/null || true; done
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html state/results.json 2>/dev/null || git add index.html
+          git add index.html state
           git commit -m "Desk refresh $(date -u +%Y-%m-%dT%H:%MZ)" || echo "No changes"
           git push
