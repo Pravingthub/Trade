@@ -1,1 +1,13 @@
-{}
+{
+ "2026-11-12|India CPI inflation for October 2026 (after the close; RBI hiked in October)": {
+  "status": "NEEDS_CHECK",
+  "value": null,
+  "month": null,
+  "year": null,
+  "rural": null,
+  "urban": null,
+  "checks": [],
+  "reason": "release not found in the configured sources yet",
+  "checked_at": "2026-11-12T16:55+05:30"
+ }
+}
