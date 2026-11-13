@@ -7,7 +7,7 @@
   "rural": null,
   "urban": null,
   "checks": [],
-  "reason": "release not found in the configured sources yet",
-  "checked_at": "2026-11-13T23:56+05:30"
+  "reason": "source failed: HTTP Error 404: Not Found",
+  "checked_at": "2026-11-14T01:28+05:30"
  }
 }
