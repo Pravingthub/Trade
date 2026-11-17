@@ -30,6 +30,16 @@ You decide and you execute in Kite.
 It needs one repository secret: **Settings → Secrets and variables → Actions → New repository secret**,
 name `FRED_API_KEY`. Never put keys in any file in this repository; a test fails if one appears.
 
+## Exact timing (cron-job.org)
+
+GitHub's own schedule runs hours late, so it is only a backup. cron-job.org triggers the desk job at exact
+times through GitHub's "Run workflow" API: weekdays 06:45, 08:50, 16:30 and 18:00 IST. Each job: POST to
+`https://api.github.com/repos/Pravingthub/Trade/actions/workflows/desk.yml/dispatches` with headers
+`Authorization: Bearer <fine-grained token, Actions read/write on Trade only>`,
+`Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28`, and body `{"ref":"main"}`.
+Runs queue one after another; late GitHub runs send nothing twice; a skipped morning plan is reported once;
+any failed run sends a silent Telegram note with a link.
+
 ## Telegram notifications
 
 Loud (phone buzzes) only when you must act: morning plan (08:50), setup triggered (with "I took it" /
@@ -53,7 +63,7 @@ cd Trade                                   # your project folder
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
 cp env.example .env                        # then open .env and fill in your keys
-pytest -q                                  # should say 308 passed
+pytest -q                                  # should say 319 passed
 ```
 
 1. **Kite Connect**: create an app at developers.kite.trade (paid "Connect" plan; check the current price there).

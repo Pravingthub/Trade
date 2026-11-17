@@ -127,7 +127,7 @@ def option_check(service, iid: str, inst: dict, as_of: date, cfg: dict, policy, 
 
 
 def build(out: Path, provider: str = "fixture", news_db: Path | None = None, journal_db: Path | None = None,
-          events_path: Path | None = None):
+          events_path: Path | None = None, now: datetime | None = None):
     import pravin_backtest as BT
     import pravin_brief as P
     import pravin_candidates as CD
@@ -146,7 +146,7 @@ def build(out: Path, provider: str = "fixture", news_db: Path | None = None, jou
     health = {r["instrument"]: r for r in s.data_health()["instruments"]}
     jpath = journal_db or ROOT / "journal.db"
     jcon = J.connect(jpath) if jpath.exists() else J.connect(":memory:")
-    now = datetime.now(IST)
+    now = now or datetime.now(IST)
     guard = J.guard_for(jcon, now, policy, "paper").status(now)
     store_meta = getattr(getattr(s.p, "store", None), "meta", lambda: {})()
     as_of = date.fromisoformat(brief["for_session"])

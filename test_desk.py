@@ -85,3 +85,12 @@ def test_index_plans_cross_check_each_other(tmp_path):
     if n["brief"]["cpr"]["day"]["close_position"] != b["brief"]["cpr"]["day"]["close_position"]:
         assert "disagree" in n["plan"]["cross_check"]["text"] or "inside" in n["plan"]["cross_check"]["text"]
     assert d["screen"] is None                               # never shown on demo prices
+
+
+def test_demo_dates_follow_the_calendar_when_not_pinned(monkeypatch):
+    from datetime import date
+
+    from pravin_api import FixtureMarketDataProvider
+    monkeypatch.delenv("PRAVIN_DEMO_LAST_SESSION", raising=False)
+    p = FixtureMarketDataProvider(n_sessions=300)
+    assert p.sessions[-1] > date(2026, 11, 10)           # no longer frozen on 10 November

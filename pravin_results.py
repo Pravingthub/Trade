@@ -5,10 +5,14 @@ A CPI figure is ACCEPTED only when every check passes:
      inflation, CFPI, and the Labour Bureau's CPI-IW can never be taken instead)
   2. every headline sentence in the release gives the SAME number
   3. the release's month and year are the month we are waiting for
-  4. at least one independent confirmation and no contradiction:
-       - the "Highlights" line states the same number, and/or
-       - the number lies between the rural and urban rates (it must)
-  5. it is plausible: between -5% and 20%, and within 3 points of last month
+  4. the "Highlights" line ("Retail inflation based on Consumer Price Index in
+     <Month>, <Year> is X%") MUST be present and agree. PDF-to-text conversion can
+     splice the CPI sentence onto the food-inflation sentence (seen in PIB's July
+     2026 PDF: "...July, 2026 over July, 2025 is 5.52%" where 5.52% was FOOD); the
+     one-line Highlights statement is the anchor that catches this
+  5. the number must not equal the release's food-inflation figure, and must lie
+     between the rural and urban rates when those are given
+  6. it is plausible: between -5% and 20%, and within 3 points of last month
 Otherwise the status is NEEDS_CHECK with the reason, and nothing changes.
 
     python pravin_results.py            # check sources for any released, unread event
@@ -33,6 +37,7 @@ HEADLINE = re.compile(r"Year-on-year inflation rate based on All India Consumer 
                       r"(?: with base year \d{4})? for the month of ([A-Za-z]+),? (\d{4}) over [A-Za-z]+,? \d{4} is " + NUM,
                       re.I)
 HIGHLIGHT = re.compile(r"Retail inflation based on Consumer Price Index in ([A-Za-z]+),? (\d{4}) is " + NUM, re.I)
+FOOD_HIGHLIGHT = re.compile(r"food inflation, based on Consumer Food Price Index, in ([A-Za-z]+),? (\d{4}) is " + NUM, re.I)
 RURAL_URBAN = re.compile(r"Corresponding inflation rates for rural and urban are " + NUM + r" and " + NUM, re.I)
 
 
@@ -75,12 +80,19 @@ def extract_cpi(text: str, month: str, year: int, previous: float | None = None)
     checks.append(f"month matches ({month.title()} {year})")
     confirmations = 0
     hl = [m for m in HIGHLIGHT.finditer(t) if m.group(1).lower() == month and int(m.group(2)) == year]
-    if hl:
-        hv = {float(m.group(3)) for m in hl}
-        if hv != {v}:
-            return Reading("NEEDS_CHECK", v, month, year, checks=checks, reason=f"highlights say {sorted(hv)}, headline says {v}")
-        confirmations += 1
-        checks.append("highlights line agrees")
+    if not hl:
+        return Reading("NEEDS_CHECK", v, month, year, checks=checks,
+                       reason="Highlights line not found: it is required, because PDF text can splice CPI and food sentences")
+    hv = {float(m.group(3)) for m in hl}
+    if hv != {v}:
+        return Reading("NEEDS_CHECK", v, month, year, checks=checks, reason=f"highlights say {sorted(hv)}, headline says {v}")
+    confirmations += 1
+    checks.append("highlights line agrees")
+    food = {float(m.group(3)) for m in FOOD_HIGHLIGHT.finditer(t) if m.group(1).lower() == month and int(m.group(2)) == year}
+    if v in food:
+        return Reading("NEEDS_CHECK", v, month, year, checks=checks, reason=f"{v}% equals the food-inflation figure: refused")
+    if food:
+        checks.append(f"differs from food inflation ({sorted(food)[0]}%)")
     rural = urban = None
     ru = RURAL_URBAN.search(t, h.end(), h.end() + 300)
     if ru and ru.start() - h.end() > 30:                     # must be the sentence immediately after the headline,
@@ -177,7 +189,16 @@ def check_released(events: list[dict], now: datetime, sources: list[str], getter
             continue
         prev = float(e["previous"]) if e.get("previous") else None
         exp = float(e["expected"]) if e.get("expected") else None
-        reading = Reading("NEEDS_CHECK", reason="release not found in the configured sources yet")
+        if e.get("actual"):                                   # entered by hand from a verified source
+            v = float(e["actual"])
+            store[event_key(e)] = {"status": "READ", "value": v, "month": target[0], "year": target[1],
+                                   "checks": [f"entered by hand: {e.get('actual_source') or 'source not given'}"],
+                                   "reason": "", "checked_at": now.isoformat(timespec="minutes"),
+                                   "judgement": judge_cpi(v, prev, exp)}
+            continue
+        reading = Reading("NEEDS_CHECK", reason=("automatic reading has no verified source yet; add the released figure "
+                                                 "to the 'actual' column in events.csv (or ask Claude to)") if not sources
+                          else "release not found in the configured sources yet")
         for src in sources:
             try:
                 for link in find_cpi_links(getter(src), *target):
@@ -196,14 +217,15 @@ def check_released(events: list[dict], now: datetime, sources: list[str], getter
 
 
 def main():
-    from datetime import date
 
     import pravin_brief as P
     import pravin_config as PC
     from pravin_quant import IST
     cfg = PC.load()
     now = datetime.now(IST)
-    events = P.load_events(ROOT / "events.csv", date.today() - __import__("datetime").timedelta(days=3), 10)
+    from datetime import timedelta
+    today = now.date()
+    events = P.load_events(ROOT / "events.csv", today - timedelta(days=60), 61)   # every event up to today
     store = check_released(events, now, cfg.get("results_sources", []))
     save(store)
     for k, v in store.items():

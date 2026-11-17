@@ -132,7 +132,7 @@ class MarketDataProvider(Protocol):
 # 5-minute bars so every timeframe is internally consistent.
 # Demo calendar: weekends plus three fixed national holidays. Production must
 # load the official NSE holiday circular for each year.
-def demo_calendar(years=(2024, 2025, 2026)) -> ExchangeCalendar:
+def demo_calendar(years=(2023, 2024, 2025, 2026, 2027, 2028)) -> ExchangeCalendar:
     hol = set()
     for y in years:
         hol |= {date(y, 1, 26), date(y, 8, 15), date(y, 10, 2)}
@@ -194,8 +194,19 @@ class FixtureMarketDataProvider:
     name = "fixture-demo"
     data_mode = DataMode.SIMULATED
 
-    def __init__(self, last_session: date = date(2026, 11, 10), n_sessions: int = 520, seed: int = 20261111):
+    def __init__(self, last_session: date | None = None, n_sessions: int = 520, seed: int = 20261111):
         self.calendar = demo_calendar()
+        if last_session is None:
+            import os
+            pinned = os.environ.get("PRAVIN_DEMO_LAST_SESSION")
+            if pinned:
+                last_session = date.fromisoformat(pinned)          # tests pin the demo dates
+            else:                                                  # otherwise: the last session before today (IST)
+                from zoneinfo import ZoneInfo
+                d = datetime.now(ZoneInfo("Asia/Kolkata")).date() - timedelta(days=1)
+                while not self.calendar.is_session(d):
+                    d -= timedelta(days=1)
+                last_session = d
         start = last_session - timedelta(days=int(n_sessions * 1.5))
         sessions = self.calendar.sessions(start, last_session)[-n_sessions:]
         self.sessions = sessions

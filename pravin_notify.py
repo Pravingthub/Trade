@@ -179,8 +179,8 @@ def results_message(event: dict, lean_before: str | None, lean_after: str) -> tu
 
 
 def unread_result_message(event: dict) -> str:
-    return (f"⚠️ {event['event'].split(' (')[0]} is out but could not be read safely "
-            f"({event.get('state_reason', 'unknown')}). Check the official release; the lean does not include it.")
+    return (f"⚠️ {event['event'].split(' (')[0]} is out but has not been read ({event.get('state_reason', 'unknown')}). "
+            "Until it is, the lean does not include it.")
 
 
 def shortlist_message(screen: dict) -> str:
@@ -255,14 +255,21 @@ def auto(desk_html: Path, n: Notifier | None, now: datetime | None = None, failu
     state_path = state_path or ROOT / "data" / "lean_state.json"
     state = json.loads(state_path.read_text()) if state_path.exists() else {}
     lean = (data.get("market_read") or {}).get("lean", "neutral")
+    session = data["brief"]["for_session"]
     if dtime(8, 30) <= t <= dtime(9, 30):
-        out.append(n.notify(plan_message(data), loud=True, key=f"plan-{data['brief']['for_session']}"))
+        out.append(n.notify(plan_message(data), loud=True, key=f"plan-{session}"))
+    elif dtime(9, 30) < t < dtime(15, 30) and session == now.date().isoformat():
+        plan_key = hashlib.sha256(f"plan-{session}".encode()).hexdigest()[:16]
+        if plan_key not in n._sent():                     # the 08:50 run never happened in time
+            out.append(n.notify(f"🕘 Today's plan was not sent: the 08:50 job did not start on time "
+                                f"(this run started at {now:%H:%M}). The desk is up to date; open it for the plan.",
+                                loud=False, key=f"plan-missed-{session}"))
     for e in data["brief"].get("events", []):
         if e.get("state") == "read":
             text, loud = results_message(e, state.get("lean"), lean)
             out.append(n.notify(text, loud=loud, key=f"result-{e['date']}-{e['event'][:30]}"))
         elif e.get("state") == "released_unread" and t >= dtime(16, 15):
-            out.append(n.notify(unread_result_message(e), loud=True, key=f"unread-{e['date']}-{e['event'][:30]}-{now:%H}"))
+            out.append(n.notify(unread_result_message(e), loud=True, key=f"unread-{e['date']}-{e['event'][:30]}"))
     if failures:
         out.append(n.notify(failures_message(failures), loud=False, key=f"fail-{now:%Y-%m-%d}-{'|'.join(failures)}"))
     state_path.parent.mkdir(parents=True, exist_ok=True)

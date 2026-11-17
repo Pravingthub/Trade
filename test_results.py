@@ -37,13 +37,50 @@ def test_reads_september_2026_and_not_the_food_figure():
 
 
 def test_reads_july_2026_with_no_space_before_provisional():
-    r = R.extract_cpi(JUL_2026, "july", 2026, previous=4.38)
+    txt = JUL_2026 + " Highlights Retail inflation based on Consumer Price Index in July, 2026 is 4.45%"
+    r = R.extract_cpi(txt, "july", 2026, previous=4.38)
     assert r.status == "READ" and r.value == 4.45
+
+
+def test_without_highlights_line_nothing_is_accepted():
+    r = R.extract_cpi(JUL_2026, "july", 2026, previous=4.38)
+    assert r.status == "NEEDS_CHECK" and "Highlights line not found" in r.reason
+
+
+# Real text extracted from PIB's July 2026 PDF: the CPI sentence's start got spliced onto the
+# FOOD sentence, so the "headline" reads 5.52% (food) while CPI was 4.45%.
+PIB_JUL_SPLICED = """PRESS RELEASE OF CONSUMER PRICE INDEX ON BASE 2024=100 FOR JULY, 2026
+I. Key Statistics A. National Level Indices
+• Year-on-year inflation rate based on All India Consumer Price Index (CPI) with base year 2024 for the
+month of July, 2026 over July, 2025 is 5.52% (Provisional). Corresponding inflation rates for rural and urban
+are 5.79% and 5.05%, respectively.
+Highlights
+Retail inflation based on Consumer Price Index in July, 2026 is 4.45%
+Year on year food inflation, based on Consumer Food Price Index, in July, 2026 is 5.52%"""
+
+
+def test_real_pib_splice_trap_is_refused():
+    r = R.extract_cpi(PIB_JUL_SPLICED, "july", 2026, previous=4.38)
+    assert r.status == "NEEDS_CHECK" and "highlights say [4.45]" in r.reason   # 5.52% (food) is never accepted
+
+
+def test_food_figure_is_refused_even_if_highlights_were_wrong():
+    t = PIB_JUL_SPLICED.replace("Consumer Price Index in July, 2026 is 4.45%", "Consumer Price Index in July, 2026 is 5.52%")
+    assert "equals the food-inflation figure" in R.extract_cpi(t, "july", 2026).reason
+
+
+def test_hand_entered_actual_is_used_and_judged_against_expected():
+    ev = [{"date": "2026-11-12", "time_ist": "16:00", "event": "India CPI inflation for October 2026", "previous": "5.54",
+           "expected": "5.93", "actual": "6.09", "actual_source": "MoSPI release via Reuters, 12 Nov 2026"}]
+    s = R.check_released(ev, datetime(2026, 11, 12, 18, 0, tzinfo=IST), [], None, {})
+    rec = s[R.event_key(ev[0])]
+    assert rec["status"] == "READ" and rec["value"] == 6.09 and "entered by hand" in rec["checks"][0]
+    assert rec["judgement"]["bias"] == "adverse" and "expected" in rec["judgement"]["text"]
 
 
 def test_old_format_without_confirmation_is_not_accepted():
     r = R.extract_cpi(SEP_2025_OLD_FORMAT, "september", 2025)
-    assert r.status == "NEEDS_CHECK" and "no independent confirmation" in r.reason
+    assert r.status == "NEEDS_CHECK" and "Highlights line not found" in r.reason
 
 
 def test_cpi_iw_and_food_only_text_are_never_read():
@@ -120,3 +157,16 @@ def test_rural_urban_must_be_the_very_next_sentence():
     no_ru = no_ru.replace("Highlights Retail inflation based on Consumer Price Index in September, 2026 is 5.54%", "")
     r = R.extract_cpi(no_ru, "september", 2026)
     assert r.status == "NEEDS_CHECK" and r.rural is None          # food's rural/urban rates are never borrowed
+
+
+def test_old_event_with_hand_entered_figure_is_still_read():
+    ev = [{"date": "2026-11-12", "time_ist": "16:00", "event": "India CPI inflation for October 2026", "previous": "5.54",
+           "expected": "5.93", "actual": "6.09", "actual_source": "MoSPI"}]
+    s = R.check_released(ev, datetime(2026, 11, 20, 9, 0, tzinfo=IST), [], None, {})     # 8 days later
+    assert s[R.event_key(ev[0])]["status"] == "READ"
+
+
+def test_no_source_configured_says_what_to_do():
+    ev = [{"date": "2026-11-12", "time_ist": "16:00", "event": "India CPI inflation for October 2026", "previous": "5.54"}]
+    s = R.check_released(ev, datetime(2026, 11, 12, 17, 0, tzinfo=IST), [], None, {})
+    assert "add the released figure" in s[R.event_key(ev[0])]["reason"]

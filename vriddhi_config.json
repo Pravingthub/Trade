@@ -67,8 +67,6 @@
     "top_n": 5,
     "history_days": 300
   },
-  "results_sources": [
-    "https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3"
-  ],
-  "_results_note": "Official feeds checked for released results (PIB English press releases). Correct the address here if PIB changes it."
+  "results_sources": [],
+  "_results_note": "No automatic results source is configured: the PIB feed address tried earlier returned 404. Add an official feed URL here only after it has been verified. Meanwhile enter released figures in events.csv (actual + actual_source)."
 }

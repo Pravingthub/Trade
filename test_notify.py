@@ -122,7 +122,7 @@ def test_unread_result_warns_and_failures_are_silent(tmp_path):
     n, fake = notifier(tmp_path, datetime(2026, 11, 12, 16, 35, tzinfo=IST))
     NT.auto(desk_file(tmp_path, d), n, datetime(2026, 11, 12, 16, 35, tzinfo=IST), ["FRED fetch failed"], tmp_path / "s.json")
     texts = {p["text"]: p["disable_notification"] for m, p in fake.calls if m == "sendMessage"}
-    assert any("could+not+be+read" in t for t in texts)
+    assert any("has+not+been+read" in t for t in texts)
     assert [v for t, v in texts.items() if "job+notes" in t] == ["true"]
 
 
@@ -142,3 +142,30 @@ def test_review_and_shortlist_messages():
 def test_unconfigured_is_harmless(tmp_path):
     assert NT.auto(desk_file(tmp_path), None) == ["telegram not configured"]
     assert NT.from_env({}) is None
+
+
+def test_unread_warning_is_sent_once_per_event(tmp_path):
+    d = json.loads(json.dumps(DATA))
+    d["brief"]["events"][0].update(state="released_unread", state_reason="no source")
+    st = tmp_path / "s.json"
+    sent = []
+    for hh in (16, 17, 18):
+        n, fake = notifier(tmp_path, datetime(2026, 11, 12, hh, 40, tzinfo=IST))
+        NT.auto(desk_file(tmp_path, d), n, datetime(2026, 11, 12, hh, 40, tzinfo=IST), state_path=st)
+        sent += [p for m, p in fake.calls if m == "sendMessage"]
+    assert len(sent) == 1
+
+
+def test_missed_plan_note_only_when_the_morning_run_never_came(tmp_path):
+    d = json.loads(json.dumps(DATA)); d["brief"]["for_session"] = "2026-11-18"; d["brief"]["events"] = []
+    n, fake = notifier(tmp_path, datetime(2026, 11, 18, 13, 27, tzinfo=IST))
+    NT.auto(desk_file(tmp_path, d), n, datetime(2026, 11, 18, 13, 27, tzinfo=IST), state_path=tmp_path / "s.json")
+    notes = [p for m, p in fake.calls if m == "sendMessage"]
+    assert len(notes) == 1 and "plan+was+not+sent" in notes[0]["text"] and notes[0]["disable_notification"] == "true"
+    # if the plan did go out at 08:50, a late run sends nothing
+    (tmp_path / "b").mkdir()
+    n2, f2 = notifier(tmp_path / "b", datetime(2026, 11, 18, 8, 50, tzinfo=IST))
+    NT.auto(desk_file(tmp_path, d), n2, datetime(2026, 11, 18, 8, 50, tzinfo=IST), state_path=tmp_path / "s2.json")
+    n3, f3 = notifier(tmp_path / "b", datetime(2026, 11, 18, 13, 27, tzinfo=IST))
+    NT.auto(desk_file(tmp_path, d), n3, datetime(2026, 11, 18, 13, 27, tzinfo=IST), state_path=tmp_path / "s2.json")
+    assert [m for m, _ in f3.calls if m == "sendMessage"] == []
