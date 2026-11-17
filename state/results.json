@@ -1,13 +1,17 @@
 {
  "2026-11-12|India CPI inflation for October 2026 (after the close; RBI hiked in October)": {
-  "status": "NEEDS_CHECK",
-  "value": null,
-  "month": null,
-  "year": null,
-  "rural": null,
-  "urban": null,
-  "checks": [],
-  "reason": "release not found in the configured sources yet",
-  "checked_at": "2026-11-17T03:58+05:30"
+  "status": "READ",
+  "value": 6.09,
+  "month": "october",
+  "year": 2026,
+  "checks": [
+   "entered by hand: MoSPI release 12 Nov 2026 (reported by Reuters and Business Standard); expected = Reuters poll"
+  ],
+  "reason": "",
+  "checked_at": "2026-11-17T23:50+05:30",
+  "judgement": {
+   "bias": "adverse",
+   "text": "CPI 6.09% vs 5.93% expected: hotter \u2192 bad for markets \u2193 (more rate hikes likely)."
+  }
  }
 }
