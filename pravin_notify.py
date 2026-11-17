@@ -80,10 +80,12 @@ class Notifier:
         self.sent_path.write_text(json.dumps(s))
 
     # ---------------------------------------------------------------- send
-    def notify(self, text: str, *, loud: bool, key: str | None = None, buttons: list | None = None) -> str:
+    def notify(self, text: str, *, loud: bool, key: str | None = None, buttons: list | None = None,
+               force: bool = False) -> str:
+        """force=True only for a test you trigger yourself: it ignores quiet hours."""
         now = self.clock()
         t = now.time()
-        if t >= QUIET_START or t < QUIET_END:
+        if not force and (t >= QUIET_START or t < QUIET_END):
             return "quiet_hours"
         k = hashlib.sha256((key or text).encode()).hexdigest()[:16]
         if k in self._sent():
@@ -288,8 +290,9 @@ def main(argv=None):
     if n is None:
         raise SystemExit("Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID (in .env on your Mac, or as GitHub secrets).")
     if a.cmd == "test":
-        print(n.notify("✅ Vriddhi is connected. Loud messages buzz; silent ones arrive quietly.", loud=True,
-                       key=f"test-{ist_now():%Y%m%d%H%M}"))
+        print(n.notify("✅ Vriddhi is connected. Loud messages buzz; silent ones arrive quietly. "
+                       "(Automatic messages pause from 22:00 to 07:00.)", loud=True,
+                       key=f"test-{ist_now():%Y%m%d%H%M}", force=True))
     elif a.cmd == "auto":
         print(auto(Path(a.desk), n, failures=[x for x in a.failures.split(";") if x.strip()]))
     elif a.cmd in ("review", "weekly"):

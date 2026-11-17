@@ -169,3 +169,9 @@ def test_missed_plan_note_only_when_the_morning_run_never_came(tmp_path):
     n3, f3 = notifier(tmp_path / "b", datetime(2026, 11, 18, 13, 27, tzinfo=IST))
     NT.auto(desk_file(tmp_path, d), n3, datetime(2026, 11, 18, 13, 27, tzinfo=IST), state_path=tmp_path / "s2.json")
     assert [m for m, _ in f3.calls if m == "sendMessage"] == []
+
+
+def test_manual_test_message_ignores_quiet_hours_but_automatic_ones_do_not(tmp_path):
+    n, fake = notifier(tmp_path, datetime(2026, 11, 17, 23, 52, tzinfo=IST))
+    assert n.notify("auto", loud=True, key="a") == "quiet_hours"
+    assert n.notify("test", loud=True, key="t", force=True) == "sent"
