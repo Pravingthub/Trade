@@ -2,8 +2,10 @@
 # and official announcements (RBI/SEBI/BSE). Prices stay DEMO until Zerodha is
 # connected on your own computer; your Zerodha data is never published here.
 #
-# Needs one repository secret: Settings → Secrets and variables → Actions →
-# New repository secret → Name: FRED_API_KEY, Secret: your key.
+# Needs three repository secrets (Settings → Secrets and variables → Actions):
+# FRED_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID.
+# GitHub's own schedule below is only a BACKUP: it often runs hours late. The exact
+# times come from cron-job.org calling "Run workflow" (see README).
 name: desk
 on:
   schedule:
@@ -11,9 +13,17 @@ on:
     - cron: "30 12 * * 1-5"    # 18:00 IST, picks up FRED values and official results published in the afternoon
     - cron: "0 11 * * 1-5"     # 16:30 IST, shortly after most official releases (CPI is at 16:00)
     - cron: "20 3 * * 1-5"     # 08:50 IST, the morning plan to Telegram
-  workflow_dispatch:            # "Run workflow" button for a manual refresh
+  workflow_dispatch:            # "Run workflow" button, and cron-job.org triggers (exact times)
+    inputs:
+      telegram_test:
+        description: "Also send a Telegram test message"
+        type: boolean
+        default: false
 permissions:
   contents: write
+concurrency:                    # runs queue one after another; they never overlap or lose each other's memory
+  group: desk
+  cancel-in-progress: false
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -37,7 +47,7 @@ jobs:
       - name: Build the desk
         run: python build_dashboard.py index.html
       - name: Telegram test (only when you press "Run workflow")
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && inputs.telegram_test
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -57,4 +67,16 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html state
           git commit -m "Desk refresh $(date -u +%Y-%m-%dT%H:%MZ)" || echo "No changes"
+          git pull --rebase -X theirs || true
           git push
+      - name: Tell Telegram if anything above failed
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "disable_notification=true" \
+            --data-urlencode "text=🛠 Vriddhi desk job FAILED. Details: ${RUN_URL}" > /dev/null || true
